@@ -1275,14 +1275,13 @@ Status Redis::SetsRename(const Slice& key, Redis* new_inst, const Slice& newkey)
   }
   delete iter;
 
-
   // copy a new set with newkey
   auto batch = Batch::CreateBatch(this);
   batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
 
   // insert newkey datacf
-  
-  for (const auto& member: members) {
+
+  for (const auto& member : members) {
     SetsMemberKey new_sets_member_key(newkey, version, member);
     BaseDataValue iter_value(Slice{});
     batch->Put(kSetsDataCF, new_sets_member_key.Encode(), iter_value.Encode());
@@ -1296,8 +1295,8 @@ Status Redis::SetsRename(const Slice& key, Redis* new_inst, const Slice& newkey)
 
   // SetsDel data
   for (const auto& member : members) {
-      SetsMemberKey base_sets_member_key(key, version, member);
-      batch->Delete(kSetsDataCF, base_sets_member_key.Encode());
+    SetsMemberKey base_sets_member_key(key, version, member);
+    batch->Delete(kSetsDataCF, base_sets_member_key.Encode());
   }
 
   return batch->Commit();
@@ -1336,7 +1335,7 @@ Status Redis::SetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newke
   }
 
   // copy a new set with newkey
-    // query members
+  // query members
   uint64_t version = 0;
   std::vector<std::string> members;
   version = parsed_sets_meta_value.Version();
@@ -1350,14 +1349,13 @@ Status Redis::SetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newke
   }
   delete iter;
 
-
   // copy a new set with newkey
   auto batch = Batch::CreateBatch(this);
   batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
 
   // insert newkey datacf
-  
-  for (const auto& member: members) {
+
+  for (const auto& member : members) {
     SetsMemberKey new_sets_member_key(newkey, version, member);
     BaseDataValue iter_value(Slice{});
     batch->Put(kSetsDataCF, new_sets_member_key.Encode(), iter_value.Encode());
@@ -1371,8 +1369,8 @@ Status Redis::SetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newke
 
   // SetsDel data
   for (const auto& member : members) {
-      SetsMemberKey base_sets_member_key(key, version, member);
-      batch->Delete(kSetsDataCF, base_sets_member_key.Encode());
+    SetsMemberKey base_sets_member_key(key, version, member);
+    batch->Delete(kSetsDataCF, base_sets_member_key.Encode());
   }
 
   return batch->Commit();
