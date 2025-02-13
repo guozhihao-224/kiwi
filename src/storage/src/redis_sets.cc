@@ -1260,17 +1260,47 @@ Status Redis::SetsRename(const Slice& key, Redis* new_inst, const Slice& newkey)
   } else if (parsed_sets_meta_value.Count() == 0) {
     return rocksdb::Status::NotFound();
   }
+
+  // query members
+  uint64_t version = 0;
+  std::vector<std::string> members;
+  version = parsed_sets_meta_value.Version();
+  SetsMemberKey sets_member_key(key, version, Slice());
+  Slice prefix = sets_member_key.EncodeSeekKey();
+  KeyStatisticsDurationGuard guard(this, DataType::kSets, newkey.ToString());
+  auto iter = db_->NewIterator(default_read_options_, handles_[kSetsDataCF]);
+  for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+    ParsedSetsMemberKey parsed_sets_member_key(iter->key());
+    members.push_back(parsed_sets_member_key.member().ToString());
+  }
+  delete iter;
+
+
   // copy a new set with newkey
-  statistic = parsed_sets_meta_value.Count();
-  s = new_inst->GetDB()->Put(default_write_options_, handles_[kMetaCF], base_meta_newkey.Encode(), meta_value);
-  new_inst->UpdateSpecificKeyStatistics(DataType::kSets, newkey.ToString(), statistic);
+  auto batch = Batch::CreateBatch(this);
+  batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
+
+  // insert newkey datacf
+  
+  for (const auto& member: members) {
+    SetsMemberKey new_sets_member_key(newkey, version, member);
+    BaseDataValue iter_value(Slice{});
+    batch->Put(kSetsDataCF, new_sets_member_key.Encode(), iter_value.Encode());
+  }
 
   // SetsDel key
-  parsed_sets_meta_value.InitialMetaValue();
-  s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
-  UpdateSpecificKeyStatistics(DataType::kSets, key.ToString(), statistic);
+  // parsed_sets_meta_value.InitialMetaValue();
+  // s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
+  // UpdateSpecificKeyStatistics(DataType::kSets, key.ToString(), statistic);
+  batch->Delete(kMetaCF, base_meta_key.Encode());
 
-  return s;
+  // SetsDel data
+  for (const auto& member : members) {
+      SetsMemberKey base_sets_member_key(key, version, member);
+      batch->Delete(kSetsDataCF, base_sets_member_key.Encode());
+  }
+
+  return batch->Commit();
 }
 
 Status Redis::SetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newkey) {
@@ -1306,16 +1336,46 @@ Status Redis::SetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newke
   }
 
   // copy a new set with newkey
-  statistic = parsed_sets_meta_value.Count();
-  s = new_inst->GetDB()->Put(default_write_options_, handles_[kMetaCF], base_meta_newkey.Encode(), meta_value);
-  new_inst->UpdateSpecificKeyStatistics(DataType::kSets, newkey.ToString(), statistic);
+    // query members
+  uint64_t version = 0;
+  std::vector<std::string> members;
+  version = parsed_sets_meta_value.Version();
+  SetsMemberKey sets_member_key(key, version, Slice());
+  Slice prefix = sets_member_key.EncodeSeekKey();
+  KeyStatisticsDurationGuard guard(this, DataType::kSets, newkey.ToString());
+  auto iter = db_->NewIterator(default_read_options_, handles_[kSetsDataCF]);
+  for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
+    ParsedSetsMemberKey parsed_sets_member_key(iter->key());
+    members.push_back(parsed_sets_member_key.member().ToString());
+  }
+  delete iter;
+
+
+  // copy a new set with newkey
+  auto batch = Batch::CreateBatch(this);
+  batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
+
+  // insert newkey datacf
+  
+  for (const auto& member: members) {
+    SetsMemberKey new_sets_member_key(newkey, version, member);
+    BaseDataValue iter_value(Slice{});
+    batch->Put(kSetsDataCF, new_sets_member_key.Encode(), iter_value.Encode());
+  }
 
   // SetsDel key
-  parsed_sets_meta_value.InitialMetaValue();
-  s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
-  UpdateSpecificKeyStatistics(DataType::kSets, key.ToString(), statistic);
+  // parsed_sets_meta_value.InitialMetaValue();
+  // s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
+  // UpdateSpecificKeyStatistics(DataType::kSets, key.ToString(), statistic);
+  batch->Delete(kMetaCF, base_meta_key.Encode());
 
-  return s;
+  // SetsDel data
+  for (const auto& member : members) {
+      SetsMemberKey base_sets_member_key(key, version, member);
+      batch->Delete(kSetsDataCF, base_sets_member_key.Encode());
+  }
+
+  return batch->Commit();
 }
 
 void Redis::ScanSets() {
