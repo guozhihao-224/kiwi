@@ -1599,16 +1599,15 @@ Status Redis::ZsetsRename(const Slice& key, Redis* new_inst, const Slice& newkey
   KeyStatisticsDurationGuard guard(this, DataType::kZSets, key.ToString());
   rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kZsetsScoreCF]);
   for (iter->Seek(zsets_score_key.Encode()); iter->Valid(); iter->Next()) {
-      ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
-      score_member.score = parsed_zsets_score_key.score();
-      score_member.member = parsed_zsets_score_key.member().ToString();
-      score_members.push_back(score_member);
+    ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
+    score_member.score = parsed_zsets_score_key.score();
+    score_member.member = parsed_zsets_score_key.member().ToString();
+    score_members.push_back(score_member);
   }
   delete iter;
 
   batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
 
-  // 
   char score_buf[8];
   for (const auto& member : score_members) {
     ZSetsMemberKey new_zsets_member_key(newkey, version, member.member);
@@ -1629,7 +1628,6 @@ Status Redis::ZsetsRename(const Slice& key, Redis* new_inst, const Slice& newkey
   }
 
   batch->Delete(kMetaCF, base_meta_key.Encode());
-
 
   return batch->Commit();
 }
@@ -1676,16 +1674,15 @@ Status Redis::ZsetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newk
   KeyStatisticsDurationGuard guard(this, DataType::kZSets, key.ToString());
   rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kZsetsScoreCF]);
   for (iter->Seek(zsets_score_key.Encode()); iter->Valid(); iter->Next()) {
-      ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
-      score_member.score = parsed_zsets_score_key.score();
-      score_member.member = parsed_zsets_score_key.member().ToString();
-      score_members.push_back(score_member);
+    ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
+    score_member.score = parsed_zsets_score_key.score();
+    score_member.member = parsed_zsets_score_key.member().ToString();
+    score_members.push_back(score_member);
   }
   delete iter;
 
   batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
 
-  // 
   char score_buf[8];
   for (const auto& member : score_members) {
     ZSetsMemberKey new_zsets_member_key(newkey, version, member.member);
@@ -1706,7 +1703,6 @@ Status Redis::ZsetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newk
   }
 
   batch->Delete(kMetaCF, base_meta_key.Encode());
-
 
   return batch->Commit();
 }
