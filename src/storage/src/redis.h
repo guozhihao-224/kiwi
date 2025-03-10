@@ -243,6 +243,7 @@ class Redis {
                  const std::string& value, int64_t* ret);
   Status LLen(const Slice& key, uint64_t* len);
   Status LPop(const Slice& key, int64_t count, std::vector<std::string>* elements);
+  Status LPopWithoutLock(const Slice& key, int64_t count, std::vector<std::string>* elements);
   Status LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret);
   Status LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len);
   Status LRange(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret);

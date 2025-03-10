@@ -176,9 +176,48 @@ void RPopCmd::DoCmd(PClient* client) {
 BLPopCmd::BLPopCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
-bool BLPopCmd::DoInitial(PClient* client) { return true; }
+bool BLPopCmd::DoInitial(PClient* client) {
+  std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end() - 1);
+  client->SetKey(keys);
 
-void BLPopCmd::DoCmd(PClient* client) {}
+  int64_t timeout = 0;
+  if (!kstd::String2int(client->argv_.back(), &timeout)) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
+  if (timeout < 0) {
+    client->SetRes(CmdRes::kErrOther, "timeout can't be a negative value");
+    return false;
+  }
+  if (timeout > 0) {
+    auto now = std::chrono::system_clock::now();
+    expire_time_ =
+        std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count() + timeout * 1000;
+  }
+  return true;
+}
+
+void BLPopCmd::DoCmd(PClient* client) {
+  std::vector<std::string> elements;
+  std::vector<std::string> list_keys(client->Keys().begin(), client->Keys().end());
+  storage::MultiScopeRecordLock(STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->GetLockMgr(), list_keys);
+  for (auto& list_key : list_keys) {
+    storage::Status s =
+        STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->LPopWithoutLock(list_key, 1, &elements);
+    if (s.ok()) {
+      client->AppendArrayLen(2);
+      client->AppendString(list_key);
+      client->AppendString(elements[0]);
+      return;
+    } else if (s.IsNotFound()) {
+      continue;
+    } else {
+      client->SetRes(CmdRes::kErrOther, s.ToString());
+      return;
+    }
+  }
+  BlockThisClientToWaitLRPush(list_keys, expire_time_, client->shared_from_this(), BlockedConnNode::Type::BLPop);
+}
 
 BRPopCmd::BRPopCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
