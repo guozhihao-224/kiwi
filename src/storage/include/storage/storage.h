@@ -575,7 +575,6 @@ class Storage {
 
   Status LPopWithoutLock(const Slice& key, int64_t count, std::vector<std::string>* elements);
 
-
   // Removes and returns the last elements of the list stored at key.
   Status RPop(const Slice& key, int64_t count, std::vector<std::string>* elements);
 

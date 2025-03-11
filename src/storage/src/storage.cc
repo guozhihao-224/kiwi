@@ -906,7 +906,6 @@ Status Storage::LPopWithoutLock(const Slice& key, int64_t count, std::vector<std
   return inst->LPopWithoutLock(key, count, elements);
 }
 
-
 Status Storage::RPop(const Slice& key, int64_t count, std::vector<std::string>* elements) {
   elements->clear();
   auto& inst = GetDBInstance(key);
