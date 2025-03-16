@@ -97,7 +97,7 @@ void FlushdbCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "flushdb failed");
     return;
   }
-  auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
+  [[maybe_unused]] auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
   client->SetRes(CmdRes::kOK);
 }
 
@@ -117,7 +117,7 @@ void FlushallCmd::DoCmd(PClient* client) {
 
     auto s = STORE_INST.GetBackend(i)->Open();
     assert(s.ok());
-    auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
+    [[maybe_unused]] auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
     STORE_INST.GetBackend(i).get()->UnLock();
   }
   client->SetRes(CmdRes::kOK);
@@ -396,25 +396,25 @@ void InfoCmd::DoCmd(PClient* client) {
 * INFO raft
 * Querying Node Information.
 * Reply:
-*   raft_node_id:595100767
+*   raft_group_id:629f074d91999a1830e26ac060bce411
+    raft_node_id:kiwi:127.0.0.1:9231:0:0
+    raft_peer_id:127.0.0.1:9231:0:0
     raft_state:up
-    raft_role:follower
-    raft_is_voting:yes
-    raft_leader_id:1733428433
-    raft_current_term:1
+    raft_role:LEADER
+    raft_leader_id:127.0.0.1:9231:0:0
+    raft_current_term:2
     raft_num_nodes:2
-    raft_num_voting_nodes:2
-    raft_node1:id=1733428433,state=connected,voting=yes,addr=localhost,port=5001,last_conn_secs=5,conn_errors=0,conn_oks=1
+    raft_node0:addr=127.0.0.1,port=9231
 */
-void InfoCmd::InfoRaft(std::string& message) {
+void InfoCmd::InfoRaft(std::string& info) {
   if (!RAFT_INST.IsInitialized()) {
-    message += "-ERR Not a cluster member.\r\n";
+    info += "-ERR Not a cluster member.\r\n";
     return;
   }
 
   auto node_status = RAFT_INST.GetNodeStatus();
   if (node_status.state == braft::State::STATE_END) {
-    message += "-ERR Node is not initialized.\r\n";
+    info += "-ERR Node is not initialized.\r\n";
     return;
   }
 
@@ -447,7 +447,7 @@ void InfoCmd::InfoRaft(std::string& message) {
     }
   }
 
-  message.append(tmp_stream.str());
+  info.append(tmp_stream.str());
 }
 
 void InfoCmd::InfoServer(std::string& info) {
@@ -473,7 +473,7 @@ void InfoCmd::InfoServer(std::string& info) {
   tmp_stream << "run_id:" << static_cast<std::string>(g_config.run_id) << "\r\n";
   tmp_stream << "tcp_port:" << g_config.port << "\r\n";
   tmp_stream << "uptime_in_seconds:" << (current_time_s - g_kiwi->GetStartTime()) << "\r\n";
-  tmp_stream << "uptime_in_days:" << (current_time_s / (24 * 3600) - g_kiwi->GetStartTime() / (24 * 3600) + 1)
+  tmp_stream << "uptime_in_days:" << ((current_time_s / (24 * 3600)) - (g_kiwi->GetStartTime() / (24 * 3600)) + 1)
              << "\r\n";
   tmp_stream << "config_file:" << g_kiwi->GetConfigName() << "\r\n";
 
@@ -497,16 +497,16 @@ void InfoCmd::InfoCPU(std::string& info) {
   std::stringstream tmp_stream;
   tmp_stream << "# CPU" << "\r\n";
   tmp_stream << "used_cpu_sys:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(self_ru.ru_stime.tv_sec) + static_cast<float>(self_ru.ru_stime.tv_usec) / 1000000
+             << static_cast<float>(self_ru.ru_stime.tv_sec) + (static_cast<float>(self_ru.ru_stime.tv_usec) / 1000000)
              << "\r\n";
   tmp_stream << "used_cpu_user:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(self_ru.ru_utime.tv_sec) + static_cast<float>(self_ru.ru_utime.tv_usec) / 1000000
+             << static_cast<float>(self_ru.ru_utime.tv_sec) + (static_cast<float>(self_ru.ru_utime.tv_usec) / 1000000)
              << "\r\n";
   tmp_stream << "used_cpu_sys_children:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(c_ru.ru_stime.tv_sec) + static_cast<float>(c_ru.ru_stime.tv_usec) / 1000000
+             << static_cast<float>(c_ru.ru_stime.tv_sec) + (static_cast<float>(c_ru.ru_stime.tv_usec) / 1000000)
              << "\r\n";
   tmp_stream << "used_cpu_user_children:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(c_ru.ru_utime.tv_sec) + static_cast<float>(c_ru.ru_utime.tv_usec) / 1000000
+             << static_cast<float>(c_ru.ru_utime.tv_sec) + (static_cast<float>(c_ru.ru_utime.tv_usec) / 1000000)
              << "\r\n";
   info.append(tmp_stream.str());
 }
@@ -531,7 +531,7 @@ void InfoCmd::InfoCommandStats(PClient* client, std::string& info) {
   tmp_stream.setf(std::ios::fixed);
   tmp_stream << "# Commandstats" << "\r\n";
   auto cmdstat_map = client->GetCommandStatMap();
-  for (auto iter : *cmdstat_map) {
+  for (const auto& iter : *cmdstat_map) {
     if (iter.second.cmd_count_ != 0) {
       tmp_stream << iter.first << ":" << FormatCommandStatLine(iter.second);
     }
@@ -862,7 +862,7 @@ void CmdClientKill::DoCmd(PClient* client) {
     default:
       break;
   }
-  ret == true ? client->SetRes(CmdRes::kOK) : client->SetRes(CmdRes::kErrOther, "No such client");
+  ret ? client->SetRes(CmdRes::kOK) : client->SetRes(CmdRes::kErrOther, "No such client");
 }
 
 CmdClientList::CmdClientList(const std::string& name, int16_t arity)

@@ -870,6 +870,7 @@ rocksdb::Status Redis::SPop(const Slice& key, std::vector<std::string>* members,
         }
 
         if (!parsed_sets_meta_value.CheckModifyCount(static_cast<int32_t>(-cnt))) {
+          delete iter;
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(static_cast<int32_t>(-cnt));

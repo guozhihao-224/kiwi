@@ -19,7 +19,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
 #include "common.h"
 #include "config_parser.h"
 #include "rocksdb/options.h"
@@ -78,9 +77,11 @@ class StringValue : public BaseValue {
 class StringValueArray : public BaseValue {
  public:
   StringValueArray(const std::string& key, CheckFunc check_func_ptr, bool rewritable,
-                   std::vector<std::string>* value_ptr_vec, char delimiter = ' ')
-      : BaseValue(key, std::move(check_func_ptr), rewritable), values_(value_ptr_vec), delimiter_(delimiter) {}
-  ~StringValueArray() override = default;
+                   std::vector<std::string>* value_ptr_vec, char delimiter = ' ', bool mul_conf_argu = false)
+      : BaseValue(key, std::move(check_func_ptr), rewritable),
+        values_(value_ptr_vec),
+        delimiter_(delimiter),
+        mul_conf_argu_(mul_conf_argu) {}
 
   std::string Value() const override { return kstd::StringConcat(*values_, delimiter_); };
 
@@ -89,6 +90,7 @@ class StringValueArray : public BaseValue {
 
   std::vector<std::string>* values_;
   char delimiter_ = 0;
+  bool mul_conf_argu_ = false;
 };
 
 template <typename T>
@@ -420,8 +422,10 @@ class Config {
    * when a key-value pair is duplicated.
    * support read string array from config file,default delimiter is ' '
    */
-  void AddStringArray(const std::string& key, bool rewritable, std::vector<std::string>* values_ptr_vector) {
-    config_map_.emplace(key, std::make_unique<StringValueArray>(key, nullptr, rewritable, values_ptr_vector));
+  void AddStringArray(const std::string& key, bool rewritable, std::vector<std::string>* values_ptr_vector,
+                      bool mul_conf_argu) {
+    config_map_.emplace(
+        key, std::make_unique<StringValueArray>(key, nullptr, rewritable, values_ptr_vector, ' ', mul_conf_argu));
   }
 
   /*------------------------

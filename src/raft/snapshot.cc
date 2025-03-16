@@ -90,16 +90,16 @@ braft::FileAdaptor* PosixFileSystemAdaptor::open(const std::string& path, int of
       braft::ConfigurationEntry learner_conf_entry;
       RAFT_INST.GetConfigurationByIndex(last_log_index, &conf_entry, &learner_conf_entry);
       new_meta.clear_peers();
-      for (auto iter = conf_entry.conf.begin(); iter != conf_entry.conf.end(); ++iter) {
-        *new_meta.add_peers() = iter->to_string();
+      for (const auto& iter : conf_entry.conf) {
+        *new_meta.add_peers() = iter.to_string();
       }
       new_meta.clear_old_peers();
-      for (auto iter = conf_entry.old_conf.begin(); iter != conf_entry.old_conf.end(); ++iter) {
-        *new_meta.add_old_peers() = iter->to_string();
+      for (const auto& iter : conf_entry.old_conf) {
+        *new_meta.add_old_peers() = iter.to_string();
       }
       new_meta.clear_learners();
-      for (auto iter = learner_conf_entry.conf.begin(); iter != learner_conf_entry.conf.end(); ++iter) {
-        *new_meta.add_learners() = iter->to_string();
+      for (const auto& iter : learner_conf_entry.conf) {
+        *new_meta.add_learners() = iter.to_string();
       }
       INFO("Succeed to fix db_{} snapshot meta: {}, {}", db_id, last_log_index, last_log_term);
 

@@ -21,8 +21,8 @@ namespace kiwi {
 
 class PosixFileSystemAdaptor : public braft::PosixFileSystemAdaptor {
  public:
-  PosixFileSystemAdaptor() {}
-  ~PosixFileSystemAdaptor() {}
+  PosixFileSystemAdaptor() = default;
+  ~PosixFileSystemAdaptor() override = default;
 
   braft::FileAdaptor* open(const std::string& path, int oflag, const ::google::protobuf::Message* file_meta,
                            butil::File::Error* e) override;

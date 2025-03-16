@@ -57,6 +57,12 @@ static void SignalSetup() {
 
 const uint32_t KiwiDB::kRunidSize = 40;
 
+static void WarnDefaultConfig() {
+  std::cerr << "*********************************************************\n";
+  std::cerr << "* Warning: Use the default configuration to start Kiwi. *\n";
+  std::cerr << "*********************************************************\n";
+}
+
 static void Usage() {
   std::cerr << "kiwi is the kiwi server.\n";
   std::cerr << "\n";
@@ -77,12 +83,22 @@ static void Usage() {
   std::cerr << "  kiwi --port 7777 --slaveof 127.0.0.1:8888\n";
 }
 
+static void version() {
+  std::cerr << "kiwi Server version: " << KIWI_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << '\n';
+  std::cerr << "kiwi Server Build Type: " << KIWI_BUILD_TYPE << '\n';
+  std::cerr << "kiwi Server Build Date: " << KIWI_BUILD_DATE << '\n';
+  std::cerr << "kiwi Server Build GIT SHA: " << KIWI_GIT_COMMIT_ID << '\n';
+}
+
 // Handle the argc & argv
 bool KiwiDB::ParseArgs(int argc, char* argv[]) {
   static struct option long_options[] = {
-      {"version", no_argument, 0, 'v'},       {"help", no_argument, 0, 'h'},
-      {"port", required_argument, 0, 'p'},    {"loglevel", required_argument, 0, 'l'},
-      {"slaveof", required_argument, 0, 's'}, {"redis-compatible-mode", no_argument, 0, 'c'},
+      {.name = "version", .has_arg = no_argument, .flag = nullptr, .val = 'v'},
+      {.name = "help", .has_arg = no_argument, .flag = nullptr, .val = 'h'},
+      {.name = "port", .has_arg = required_argument, .flag = nullptr, .val = 'p'},
+      {.name = "loglevel", .has_arg = required_argument, .flag = nullptr, .val = 'l'},
+      {.name = "slaveof", .has_arg = required_argument, .flag = nullptr, .val = 's'},
+      {.name = "redis-compatible-mode", .has_arg = no_argument, .flag = nullptr, .val = 'c'},
   };
   // kiwi [/path/to/kiwi.conf] [options]
   if (argv == nullptr) {
@@ -92,14 +108,17 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
     struct stat st {};
     if (stat(argv[1], &st) == 0 && S_ISREG(st.st_mode) && ::access(argv[1], R_OK) == 0) {
       options_.SetConfigName(argv[1]);
+      std::cerr << "Configuration file path: [" << argv[1] << "]\n";
       argc = argc - 1;
       argv = argv + 1;
     } else {
       std::cerr << "Configuration file [" << argv[1] << "]: " << strerror(errno) << "\n";
       return false;
     }
+  } else {
+    WarnDefaultConfig();
   }
-  while (1) {
+  while (true) {
     int this_option_optind = optind ? optind : 1;
     int option_index = 0;
     int c;
@@ -110,16 +129,13 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
 
     switch (c) {
       case 'v': {
-        std::cerr << "kiwi Server version: " << KIWI_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << std::endl;
-        std::cerr << "kiwi Server Build Type: " << KIWI_BUILD_TYPE << std::endl;
-        std::cerr << "kiwi Server Build Date: " << KIWI_BUILD_DATE << std::endl;
-        std::cerr << "kiwi Server Build GIT SHA: " << KIWI_GIT_COMMIT_ID << std::endl;
+        version();
         std::exit(0);
         break;
       }
       case 'h': {
         Usage();
-        exit(0);
+        std::exit(0);
         break;
       }
       case 'p': {
@@ -131,8 +147,8 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
         break;
       }
       case 's': {
-        unsigned int optarg_long = static_cast<unsigned int>(strlen(optarg));
-        char* str = (char*)calloc(optarg_long, sizeof(char*));
+        auto optarg_long = static_cast<unsigned int>(strlen(optarg));
+        char* str = static_cast<char*>(calloc(optarg_long, sizeof(char)));
         if (str) {
           if (sscanf(optarg, "%s:%hu", str, &master_port_) != 2) {
             ERROR("Invalid slaveof format.");
@@ -151,7 +167,12 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
         break;
       }
       case '?': {
-        std::cerr << "Unknow option " << std::endl;
+        std::cerr << "Unknow option \n";
+        return false;
+        break;
+      }
+      default: {
+        std::cerr << "Unknow option \n";
         return false;
         break;
       }
@@ -201,7 +222,7 @@ void KiwiDB::ScanEvictedBlockedConnsOfBlrpop() {
 
 void KiwiDB::CleanBlockedNodes(const std::shared_ptr<kiwi::PClient>& client) {
   std::vector<kiwi::BlockKey> blocked_keys;
-  for (auto key : client->Keys()) {
+  for (const auto& key : client->Keys()) {
     blocked_keys.emplace_back(client->GetCurrentDB(), key);
   }
   auto& key_to_blocked_conns = g_kiwi->GetMapFromKeyToConns();

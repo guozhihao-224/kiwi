@@ -296,7 +296,7 @@ void SPopCmd::DoCmd(PClient* client) {
   } else if ((client->argv_.size()) == 3) {
     std::vector<std::string> delete_members;
     int64_t cnt = 1;
-    if (client->argv_[2].find(".") != std::string::npos || !kstd::String2int(client->argv_[2], &cnt)) {
+    if (client->argv_[2].find('.') != std::string::npos || !kstd::String2int(client->argv_[2], &cnt)) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
     }
@@ -446,7 +446,7 @@ void SScanCmd::DoCmd(PClient* client) {
   }
 
   // reply to client
-  client->AppendArrayLen(int64_t(2));
+  client->AppendArrayLen(static_cast<int64_t>(2));
   client->AppendString(std::to_string(next_cursor));
   client->AppendStringVector(members);
 }

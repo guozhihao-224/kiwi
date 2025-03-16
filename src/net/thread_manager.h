@@ -363,7 +363,9 @@ uint64_t ThreadManager<T>::DoTCPConnect(T &t, int fd, const std::shared_ptr<Conn
     t.SetConnId(conn_id);
     t.SetThreadIndex(index_);
   }
+
   conn->fd_ = fd;
+  conn->conn_id_ = conn_id;
 
   {
     std::lock_guard lock(mutex_);

@@ -315,7 +315,7 @@ bool ZRevrangeCmd::DoInitial(PClient* client) {
 }
 
 void ZRevrangeCmd::DoCmd(PClient* client) {
-  std::string key;
+  [[maybe_unused]] std::string key;
   int64_t start = 0;
   int64_t stop = -1;
   bool is_ws = false;
@@ -408,7 +408,7 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
   }
 
   if (min_score == storage::ZSET_SCORE_MAX || max_score == storage::ZSET_SCORE_MIN) {
-    client->AppendArrayLen(int64_t(0));
+    client->AppendArrayLen(static_cast<int64_t>(0));
     return;
   }
   std::vector<storage::ScoreMember> score_members;
@@ -526,7 +526,7 @@ void ZRevrangebyscoreCmd::DoCmd(PClient* client) {
   }
 
   if (min_score == storage::ZSET_SCORE_MAX || max_score == storage::ZSET_SCORE_MIN) {
-    client->AppendArrayLen(int64_t(0));
+    client->AppendArrayLen(static_cast<int64_t>(0));
     return;
   }
   std::vector<storage::ScoreMember> score_members;
@@ -765,7 +765,7 @@ bool ZRangebylexCmd::DoInitial(PClient* client) {
 
 void ZRangebylexCmd::DoCmd(PClient* client) {
   if (strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
-    client->AppendArrayLen(int64_t(0));
+    client->AppendArrayLen(static_cast<int64_t>(0));
   }
 
   size_t argc = client->argv_.size();
@@ -829,7 +829,7 @@ bool ZRevrangebylexCmd::DoInitial(PClient* client) {
 
 void ZRevrangebylexCmd::DoCmd(PClient* client) {
   if (strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
-    client->AppendArrayLen(int64_t(0));
+    client->AppendArrayLen(static_cast<int64_t>(0));
   }
 
   size_t argc = client->argv_.size();
@@ -893,7 +893,7 @@ void ZRankCmd::DoCmd(PClient* client) {
   if (s.ok()) {
     client->AppendInteger(rank);
   } else if (s.IsNotFound()) {
-    client->AppendArrayLen(int64_t(0));
+    client->AppendArrayLen(static_cast<int64_t>(0));
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
@@ -916,7 +916,7 @@ void ZRevrankCmd::DoCmd(PClient* client) {
   if (s.ok()) {
     client->AppendInteger(revrank);
   } else if (s.IsNotFound()) {
-    client->AppendArrayLen(int64_t(0));
+    client->AppendArrayLen(static_cast<int64_t>(0));
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {

@@ -1547,7 +1547,8 @@ Status Redis::PKPatternMatchDel(const std::string& pattern, int32_t* ret) {
   int32_t total_delete = 0;
   rocksdb::Status s;
   rocksdb::WriteBatch batch;
-  rocksdb::Iterator* iter = db_->NewIterator(iterator_options, handles_[kMetaCF]);
+  rocksdb::Iterator* iter_temp = db_->NewIterator(iterator_options, handles_[kMetaCF]);
+  std::unique_ptr<rocksdb::Iterator> iter(iter_temp);
   iter->SeekToFirst();
   while (iter->Valid()) {
     auto meta_type = static_cast<enum DataType>(static_cast<uint8_t>(iter->value()[0]));

@@ -40,7 +40,7 @@ class KiwiDB final {
   KiwiDB() = default;
   ~KiwiDB() = default;
 
-  bool ParseArgs(int ac, char* av[]);
+  bool ParseArgs(int argc, char* argv[]);
   const PString& GetConfigName() const { return options_.GetConfigName(); }
 
   bool Init();

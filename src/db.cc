@@ -22,7 +22,10 @@ namespace kiwi {
 DB::DB(int db_index, const std::string& db_path)
     : db_index_(db_index), db_path_(db_path + std::to_string(db_index_) + '/') {}
 
-DB::~DB() { INFO("DB{} is closing...", db_index_); }
+DB::~DB() {
+  storage_->Close();
+  INFO("DB{} is closing...", db_index_);
+}
 
 rocksdb::Status DB::Open() {
   storage::StorageOptions storage_options;

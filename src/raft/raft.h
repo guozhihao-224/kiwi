@@ -140,8 +140,7 @@ class Raft : public braft::StateMachine {
   butil::Status GetListPeers(std::vector<braft::PeerId>* peers);
   storage::LogIndex GetTerm(uint64_t log_index);
   storage::LogIndex GetLastLogIndex(bool is_flush = false);
-  void GetConfigurationByIndex(const int64_t index, braft::ConfigurationEntry* conf,
-                               braft::ConfigurationEntry* learner_conf);
+  void GetConfigurationByIndex(int64_t index, braft::ConfigurationEntry* conf, braft::ConfigurationEntry* learner_conf);
 
   bool IsInitialized() const { return node_ != nullptr && server_ != nullptr; }
 

@@ -280,8 +280,8 @@ class InfoCmd : public BaseCmd {
   void InfoData(std::string& info);
   void InfoCommandStats(PClient* client, std::string& info);
   std::string FormatCommandStatLine(const CommandStatistics& stats);
-  double MethodofTotalTimeCalculation(const uint64_t time_consuming);
-  double MethodofCommandStatistics(const uint64_t time_consuming, const uint64_t frequency);
+  double MethodofTotalTimeCalculation(uint64_t time_consuming);
+  double MethodofCommandStatistics(uint64_t time_consuming, uint64_t frequency);
 };
 
 class CmdDebug : public BaseCmdGroup {

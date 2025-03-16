@@ -303,7 +303,7 @@ void PReplication::SaveTmpRdb(const char* data, std::size_t& len) {
   //    masterInfo_.state = kPReplStateOnline;
   //    masterInfo_.downSince = 0;
   //  }
-  return;
+  // return;
 }
 
 void PReplication::SetMaster(const std::shared_ptr<PClient>& cli) { master_ = cli; }
@@ -429,7 +429,7 @@ PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
     kstd::String2int(params[2].c_str(), params[2].size(), &tmpPort);
     uint16_t port = static_cast<uint16_t>(tmpPort);
 
-    net::SocketAddr reqMaster(params[1].c_str(), port);
+    net::SocketAddr reqMaster(params[1], port);
 
     if (port > 0 && PREPL.GetMasterAddr() != reqMaster) {
       PREPL.SetMasterAddr(params[1].c_str(), port);

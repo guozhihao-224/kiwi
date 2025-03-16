@@ -113,7 +113,7 @@ bool HMSetCmd::DoInitial(PClient* client) {
   client->ClearFvs();
   // set fvs
   for (size_t index = 2; index < client->argv_.size(); index += 2) {
-    client->Fvs().push_back({client->argv_[index], client->argv_[index + 1]});
+    client->Fvs().emplace_back(client->argv_[index], client->argv_[index + 1]);
   }
   return true;
 }
@@ -421,7 +421,6 @@ void HSetNXCmd::DoCmd(PClient* client) {
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
   }
-  return;
 }
 
 HIncrbyCmd::HIncrbyCmd(const std::string& name, int16_t arity)

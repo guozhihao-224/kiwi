@@ -44,16 +44,19 @@ void BaseCmd::Execute(PClient* client) {
   // read consistency (lease read) / write redirection
   if (g_config.use_raft && (HasFlag(kCmdFlagsReadonly) || HasFlag(kCmdFlagsWrite))) {
     if (!RAFT_INST.IsInitialized()) {
-      return client->SetRes(CmdRes::kErrOther, "RAFT_INST is not initialized");
+      client->SetRes(CmdRes::kErrOther, "RAFT_INST is not initialized");
+      return;
     }
 
     if (!RAFT_INST.IsLeader()) {
       auto leader_addr = RAFT_INST.GetLeaderAddress();
       if (leader_addr.empty()) {
-        return client->SetRes(CmdRes::kErrOther, std::string("-CLUSTERDOWN No Raft leader"));
+        client->SetRes(CmdRes::kErrOther, std::string("-CLUSTERDOWN No Raft leader"));
+        return;
       }
 
-      return client->SetRes(CmdRes::kErrOther, fmt::format("-MOVED {}", leader_addr));
+      client->SetRes(CmdRes::kErrOther, fmt::format("-MOVED {}", leader_addr));
+      return;
     }
   }
 
@@ -110,7 +113,7 @@ void BaseCmd::BlockThisClientToWaitLRPush(std::vector<std::string>& keys, int64_
                                           std::shared_ptr<PClient> client, BlockedConnNode::Type type) {
   std::lock_guard<std::shared_mutex> map_lock(g_kiwi->GetBlockMtx());
   auto& key_to_conns = g_kiwi->GetMapFromKeyToConns();
-  for (auto key : keys) {
+  for (const auto& key : keys) {
     kiwi::BlockKey blpop_key{client->GetCurrentDB(), key};
 
     auto it = key_to_conns.find(blpop_key);
@@ -154,6 +157,9 @@ void BaseCmd::ServeAndUnblockConns(PClient* client) {
       case BlockedConnNode::Type::BRPop:
         s = STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->RPop(client->Key(), 1, &elements);
         break;
+      case BlockedConnNode::Type::NotAny:
+        //! DOING NOTHING?
+        break;
     }
 
     if (s.ok()) {
@@ -178,10 +184,7 @@ bool BlockedConnNode::IsExpired(std::chrono::system_clock::time_point now) {
     return false;
   }
   int64_t now_in_ms = std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count();
-  if (expire_time_ <= now_in_ms) {
-    return true;
-  }
-  return false;
+  return expire_time_ <= now_in_ms;
 }
 
 bool BaseCmdGroup::DoInitial(PClient* client) {

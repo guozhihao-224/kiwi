@@ -10,6 +10,7 @@
 
 #include "store.h"
 
+#include <algorithm>
 #include <memory>
 #include <string>
 
