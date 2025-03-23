@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -166,6 +166,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LPush, -3);
   ADD_COMMAND(RPush, -3);
   ADD_COMMAND(RPop, 2);
+  ADD_COMMAND(BLPop, -3);
+  ADD_COMMAND(BRPop, -3);
   ADD_COMMAND(LRem, 4);
   ADD_COMMAND(LRange, 4);
   ADD_COMMAND(LTrim, 4);

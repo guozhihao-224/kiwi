@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -74,7 +74,7 @@ void HGetCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "hget cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameHGet);
   }
 }
 
@@ -113,7 +113,7 @@ bool HMSetCmd::DoInitial(PClient* client) {
   client->ClearFvs();
   // set fvs
   for (size_t index = 2; index < client->argv_.size(); index += 2) {
-    client->Fvs().push_back({client->argv_[index], client->argv_[index + 1]});
+    client->Fvs().emplace_back(client->argv_[index], client->argv_[index + 1]);
   }
   return true;
 }
@@ -419,9 +419,8 @@ void HSetNXCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameHSetNX);
   }
-  return;
 }
 
 HIncrbyCmd::HIncrbyCmd(const std::string& name, int16_t arity)
@@ -477,12 +476,12 @@ void HRandFieldCmd::DoCmd(PClient* client) {
       return;
     }
     if (argv.size() > 4) {
-      client->SetRes(CmdRes::kSyntaxErr);
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameHRandField);
       return;
     }
     if (argv.size() > 3) {
       if (kWithValueString != kstd::StringToLower(argv[3])) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameHRandField);
         return;
       }
       with_values = true;

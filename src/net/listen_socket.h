@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -30,13 +30,13 @@ class ListenSocket : public BaseSocket {
 
   // Accept new connection and create new connection object
   // when the connection is established, the OnCreate function is called
-  int OnReadable(const std::shared_ptr<Connection> &conn, std::string *read_buff) override;
+  int OnReadable(Connection *conn, std::string *readBuff) override;
 
   // The function is cant be used
-  int OnWritable() override;
+  int OnWritable(Connection *conn, BaseEvent *event) override;
 
   // The function is cant be used
-  bool SendPacket(std::string &&msg) override;
+  void SendPacket(std::string &&msg, std::function<void()> addWriteFlag) override;
 
   // Initialize the socket and bind the address
   int Init() override;

@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -13,7 +13,6 @@
 
 #include "config.h"
 #include "std/std_string.h"
-#include "store.h"
 
 namespace kiwi {
 
@@ -70,23 +69,21 @@ Status StringValue::SetValue(const std::string& value) {
   *values_ = value;
   return Status::OK();
 }
-
 Status StringValueArray::SetValue(const std::string& value) {
   auto values = SplitString(value, delimiter_);
-  if (!values_.empty()) {  // if the value_ is not empty, check the number of parameters
-    if (values.size() != values_.size()) {
+  if (!values_->empty()) {  // if the value_ is not empty, check the number of parameters
+    if (values.size() != values_->size() && !mul_conf_argu_) {
       return Status::InvalidArgument("The number of parameters does not match.");
     }
   } else {  // if the value_ is empty, resize the value_ to the size of the values
-    values_.resize(values.size());
+    values_->resize(values.size());
   }
-
-  for (int i = 0; i < values.size(); i++) {
-    values_[i] = std::move(values[i]);
+  values_->clear();
+  for (const auto& value : values) {
+    values_->emplace_back(value);
   }
   return Status::OK();
 }
-
 Status BoolValue::SetValue(const std::string& value) {
   if (kstd::StringEqualCaseInsensitive(value, "yes")) {
     *value_ = true;
@@ -133,7 +130,7 @@ Status MemorySize::SetValue(const std::string& value) {
 Config::Config() {
   AddBool("redis-compatible-mode", &CheckYesNo, true, &redis_compatible_mode);
   AddBool("daemonize", &CheckYesNo, false, &daemonize);
-  AddStringArray("ips", false, ips);
+  AddStringArray("ips", false, &ips, true);
   AddString("raft-ip", false, &raft_ip);
   AddNumberWithLimit<uint16_t>("port", false, &port, PORT_LIMIT_MIN, PORT_LIMIT_MAX);
   AddNumber("raft-port-offset", true, &raft_port_offset);

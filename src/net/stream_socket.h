@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -25,11 +25,11 @@ class StreamSocket : public BaseSocket {
 
   int Init() override { return 1; };
 
-  int OnReadable(const std::shared_ptr<Connection> &conn, std::string *readBuff) override;
+  int OnReadable(Connection *conn, std::string *readBuff) override;
 
-  int OnWritable() override;
+  int OnWritable(Connection *conn, BaseEvent *event) override;
 
-  bool SendPacket(std::string &&msg) override;
+  void SendPacket(std::string &&msg, std::function<void()> addWriteFlag) override;
 
   int Read(std::string *readBuff);
 
@@ -43,6 +43,7 @@ class StreamSocket : public BaseSocket {
   size_t sendPos_ = 0;  // send data buff pos
 
   std::atomic<bool> writeReady_ = false;  // write ready flag
+  std::mutex write_mutex_;                // write mutex
 };
 
 }  // namespace net

@@ -1,24 +1,29 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
 #include "stream_socket.h"
+#include "base_event.h"
 #include "log.h"
 
 namespace net {
 
-int StreamSocket::OnReadable(const std::shared_ptr<Connection> &conn, std::string *readBuff) { return Read(readBuff); }
+int StreamSocket::OnReadable(Connection *conn, std::string *readBuff) { return Read(readBuff); }
 
 // return bytes that have not yet been sent
-int StreamSocket::OnWritable() {
+int StreamSocket::OnWritable(Connection *conn, BaseEvent *event) {
   if (sendData_.empty()) {
     if (!writeQueue_.Pop(sendData_)) {  // no data to send
-      writeReady_.store(false);
-      return NE_OK;
+      std::lock_guard lock(write_mutex_);
+      if (writeQueue_.Empty()) {  // double check
+        writeReady_ = false;
+        event->DelWriteEvent(conn);
+      }
     }
+    return NE_OK;
   }
   size_t ret = ::write(Fd(), sendData_.c_str() + sendPos_, sendData_.size() - sendPos_);
   if (ret == -1) {
@@ -35,19 +40,28 @@ int StreamSocket::OnWritable() {
     sendData_.clear();
     // determine if there is still data in the queue
     if (writeQueue_.Empty()) {
-      writeReady_.store(false);
+      std::lock_guard lock(write_mutex_);
+      if (writeQueue_.Empty()) {  // double check
+        writeReady_ = false;
+        event->DelWriteEvent(conn);
+      }
       return NE_OK;
     }
   }
   return NE_WAIT;  // there is still data in the queue, waiting for the next write event
 }
 
-bool StreamSocket::SendPacket(std::string &&msg) {
+void StreamSocket::SendPacket(std::string &&msg, std::function<void()> addWriteFlag) {
   bool sendOver;
   do {
     sendOver = writeQueue_.Push(msg);
   } while (!sendOver);
-  return !writeReady_.exchange(true);
+  if (!writeReady_.exchange(true)) {
+    std::lock_guard lock(write_mutex_);
+    if (addWriteFlag) {
+      addWriteFlag();
+    }
+  }
 }
 
 // Read data from the socket
@@ -58,13 +72,14 @@ int StreamSocket::Read(std::string *readBuff) {
     if (ret == -1) {
       if (EAGAIN == errno || EWOULDBLOCK == errno || ECONNRESET == errno) {
         return NE_OK;
-      } else {
-        ERROR("StreamSocket fd: {} read error: {}", Fd(), errno);
-        return NE_ERROR;
       }
-    } else if (ret == 0) {
+      ERROR("StreamSocket fd: {} read error: {}", Fd(), errno);
+      return NE_ERROR;
+    }
+    if (ret == 0) {
       return NE_CLOSE;
-    } else if (ret > 0) {
+    }
+    if (ret > 0) {
       readBuff->append(readBuffer, ret);
     }
     if (!NoBlock()) {

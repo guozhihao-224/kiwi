@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -48,7 +48,7 @@ void PSlowLog::EndAndStat(const std::vector<PString>& cmds) {
 
   timeval end;
   gettimeofday(&end, 0);
-  auto used = end.tv_sec * 1000000 + end.tv_usec - beginUs_;
+  auto used = (end.tv_sec * 1000000) + end.tv_usec - beginUs_;
 
   if (used >= threshold_) {
     INFO("+ Used:(us) {}", used);

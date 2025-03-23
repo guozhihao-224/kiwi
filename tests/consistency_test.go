@@ -29,7 +29,7 @@ var (
 	leader    *redis.Client
 )
 
-var _ = XDescribe("Consistency [Skipped]", Ordered, func() {
+var _ = Describe("Consistency", Ordered, func() {
 	var (
 		ctx     = context.TODO()
 		servers []*util.Server

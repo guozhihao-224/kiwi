@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -9,7 +9,6 @@
 
 #ifdef HAVE_EPOLL
 
-#  include "callback_function.h"
 #  include "log.h"
 
 namespace net {
@@ -28,7 +27,7 @@ bool EpollEvent::Init() {
   }
   if (mode_ & EVENT_MODE_READ) {  // Add the listen socket to epoll for read
     for (auto &s : listen_sockets_) {
-      AddEvent(s->Fd(), s->Fd(), EVENT_READ);
+      AddEvent(s->Fd(), EVENT_READ);
     }
   }
   if (pipe(pipeFd_) == -1) {
@@ -36,17 +35,26 @@ bool EpollEvent::Init() {
     return false;
   }
 
-  AddEvent(pipeFd_[0], pipeFd_[0], EVENT_READ);
+  AddEvent(pipeFd_[0], EVENT_READ);
 
   return true;
 }
 
-void EpollEvent::AddEvent(uint64_t id, int fd, int mask) {
-  struct epoll_event ev {};
+void EpollEvent::AddEvent(int fd, int mask) const {
+  epoll_event ev{};
   ev.events = mask;
-  ev.data.u64 = id;
+  ev.data.fd = fd;
   if (epoll_ctl(EvFd(), EPOLL_CTL_ADD, fd, &ev) == -1) {
-    ERROR("AddEvent id:{},EvFd:{},fd:{}, epoll AddEvent error errno:{}", id, EvFd(), fd, errno);
+    ERROR("AddEvent EvFd:{},fd:{}, epoll add error errno:{}", EvFd(), fd, errno);
+  }
+}
+
+void EpollEvent::AddEvent(Connection *conn, int mask) {
+  epoll_event ev{};
+  ev.events = mask;
+  ev.data.ptr = conn;
+  if (epoll_ctl(EvFd(), EPOLL_CTL_ADD, conn->fd_, &ev) == -1) {
+    ERROR("AddEvent id:{},EvFd:{},fd:{}, epoll AddEvent error errno:{}", conn->conn_id_, EvFd(), conn->fd_, errno);
   }
 }
 
@@ -60,40 +68,37 @@ void EpollEvent::EventPoll() {
   }
 }
 
-void EpollEvent::AddWriteEvent(uint64_t id, int fd) {
-  struct epoll_event ev {};
+void EpollEvent::AddWriteEvent(Connection *conn) {
+  epoll_event ev{};
   ev.events = EVENT_WRITE;
-  ev.data.u64 = id;
+  ev.data.ptr = conn;
   if (mode_ & EVENT_MODE_READ) {  // If it is a read multiplex, modify the event
     ev.events |= EVENT_READ;
-    if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, fd, &ev) == -1) {
-      ERROR("AddWriteEvent id:{},EvFd:{},fd:{}, epoll add RW error errno:{}", id, EvFd(), fd, errno);
+    if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, conn->fd_, &ev) == -1) {
+      ERROR("AddWriteEvent id:{},EvFd:{},fd:{}, epoll add RW error errno:{}", conn->conn_id_, EvFd(), conn->fd_, errno);
     }
   } else {  // If it is a write multiplex, add the event
-    if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, fd, &ev) == -1) {
-      ERROR("AddWriteEvent id:{},EvFd:{},fd:{}, epoll add W error errno:{}", id, EvFd(), fd, errno);
+    if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, conn->fd_, &ev) == -1) {
+      ERROR("AddWriteEvent id:{},EvFd:{},fd:{}, epoll add W error errno:{}", conn->conn_id_, EvFd(), conn->fd_, errno);
     }
   }
 }
 
-void EpollEvent::DelWriteEvent(uint64_t id, int fd) {
-  struct epoll_event ev {};
-  ev.data.u64 = id;
+void EpollEvent::DelWriteEvent(Connection *conn) {
+  epoll_event ev{};
+  ev.data.ptr = conn;
   if (mode_ & EVENT_MODE_READ) {  // If it is a read multiplex, modify the event to rea
     ev.events = EVENT_READ;
-    if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, fd, &ev) == -1) {
-      ERROR("DelWriteEvent id:{},EvFd:{},fd:{}, EPOLL_CTL_MOD error errno:{}", id, EvFd(), fd, errno);
-    }
   } else {
-    ev.events = BaseEvent::EVENT_NULL;
-    if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, fd, &ev) == -1) {
-      ERROR("DelWriteEvent id:{},EvFd:{},fd:{}, EPOLL_CTL_DEL error errno:{}", id, EvFd(), fd, errno);
-    }
+    ev.events = EVENT_NULL;  // If it is a only write fd,set null event
+  }
+  if (epoll_ctl(EvFd(), EPOLL_CTL_MOD, conn->fd_, &ev) == -1) {
+    ERROR("DelWriteEvent id:{},EvFd:{},fd:{}, EPOLL_CTL_MOD error errno:{}", conn->conn_id_, EvFd(), conn->fd_, errno);
   }
 }
 
 void EpollEvent::EventRead() {
-  struct epoll_event events[eventsSize];
+  epoll_event events[eventsSize];
   int waitInterval = -1;
   if (timer_) {
     waitInterval = static_cast<int>(timer_->Interval());
@@ -106,18 +111,22 @@ void EpollEvent::EventRead() {
         DoError(events[i], "");
         continue;
       }
-      std::shared_ptr<Connection> conn;
+      if (events[i].data.fd == pipeFd_[0]) {
+        continue;
+      }
+      Connection *conn = nullptr;
       if (events[i].events & EVENT_READ) {
         // If the event is less than the listen socket, it is a new connection
         // If getListenSocket is nullptr, it means the event is not a listen socket
-        if (!getListenSocket(events[i].data.u64)) {
-          conn = getConn_(events[i].data.u64);
+        auto listen = getListenSocket(events[i].data.fd);
+        if (!listen) {
+          conn = static_cast<Connection *>(events[i].data.ptr);
         }
-        DoRead(events[i], conn);
+        DoRead(events[i], conn, listen);
       }
 
       if ((mode_ & EVENT_MODE_WRITE) && events[i].events & EVENT_WRITE) {
-        conn = getConn_(events[i].data.u64);
+        conn = static_cast<Connection *>(events[i].data.ptr);
         if (!conn) {  // If the connection is empty, call DoError
           DoError(events[i], "connection is null");
           continue;
@@ -133,14 +142,14 @@ void EpollEvent::EventRead() {
 }
 
 void EpollEvent::EventWrite() {
-  struct epoll_event events[eventsSize];
+  epoll_event events[eventsSize];
   while (running_.load()) {
     int nfds = epoll_wait(EvFd(), events, eventsSize, -1);
     for (int i = 0; i < nfds; ++i) {
       if ((events[i].events & EVENT_HUB) || (events[i].events & EVENT_ERROR)) {
         DoError(events[i], "");
       }
-      auto conn = getConn_(events[i].data.u64);
+      auto conn = static_cast<Connection *>(events[i].data.ptr);
       if (!conn) {
         DoError(events[i], "connection is null");
         continue;
@@ -152,43 +161,49 @@ void EpollEvent::EventWrite() {
   }
 }
 
-void EpollEvent::DoRead(const epoll_event &event, const std::shared_ptr<Connection> &conn) {
-  if (auto s = getListenSocket(event.data.u64); s) {
+void EpollEvent::DoRead(const epoll_event &event, Connection *conn, const std::shared_ptr<ListenSocket> &listen) {
+  if (listen) {
     auto newConn = std::make_shared<Connection>(nullptr);
-    auto connFd = s->OnReadable(newConn, nullptr);
+    auto connFd = listen->OnReadable(newConn.get(), nullptr);
     if (connFd < 0) {
       DoError(event, "accept error");
       return;
     }
-    onCreate_(connFd, newConn);
-  } else if (conn) {
+    onCreate_(newConn);
+    return;
+  }
+  if (conn) {
     std::string readBuff;
     int ret = conn->net_event_->OnReadable(conn, &readBuff);
     if (ret == NE_ERROR) {
       DoError(event, "read error,errno: " + std::to_string(errno));
       return;
-    } else if (ret == NE_CLOSE) {
+    }
+    if (ret == NE_CLOSE) {
       DoError(event, "");
       return;
     }
-    onMessage_(event.data.u64, std::move(readBuff));
+    onMessage_(conn->conn_id_, std::move(readBuff));
   } else {
     DoError(event, "connection is null");
   }
 }
 
-void EpollEvent::DoWrite(const epoll_event &event, const std::shared_ptr<Connection> &conn) {
-  auto ret = conn->net_event_->OnWritable();
+void EpollEvent::DoWrite(const epoll_event &event, Connection *conn) {
+  auto ret = conn->net_event_->OnWritable(conn, this);
   if (ret == NE_ERROR) {
     DoError(event, "write error,errno: " + std::to_string(errno));
-    return;
-  }
-  if (ret == NE_OK) {  // If the write is successful, delete the write event
-    DelWriteEvent(event.data.u64, conn->fd_);
   }
 }
 
-void EpollEvent::DoError(const epoll_event &event, std::string &&err) { onClose_(event.data.u64, std::move(err)); }
+void EpollEvent::DoError(const epoll_event &event, std::string &&err) {
+  auto conn = static_cast<Connection *>(event.data.ptr);
+  if (!conn) {
+    ERROR("DoError conn is null");
+    return;
+  }
+  onClose_(conn->conn_id_, std::move(err));
+}
 
 }  // namespace net
 #endif

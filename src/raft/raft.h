@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -7,11 +7,9 @@
 
 #pragma once
 
-#include <filesystem>
 #include <future>
 #include <mutex>
 #include <string>
-#include <tuple>
 #include <vector>
 
 #include "braft/configuration_manager.h"
@@ -40,7 +38,7 @@ namespace kiwi {
 // class EventLoop;
 class Binlog;
 
-enum ClusterCmdType {
+enum ClusterCmdType : int8_t {
   kNone,
   kJoin,
   kRemove,
@@ -142,8 +140,7 @@ class Raft : public braft::StateMachine {
   butil::Status GetListPeers(std::vector<braft::PeerId>* peers);
   storage::LogIndex GetTerm(uint64_t log_index);
   storage::LogIndex GetLastLogIndex(bool is_flush = false);
-  void GetConfigurationByIndex(const int64_t index, braft::ConfigurationEntry* conf,
-                               braft::ConfigurationEntry* learner_conf);
+  void GetConfigurationByIndex(int64_t index, braft::ConfigurationEntry* conf, braft::ConfigurationEntry* learner_conf);
 
   bool IsInitialized() const { return node_ != nullptr && server_ != nullptr; }
 

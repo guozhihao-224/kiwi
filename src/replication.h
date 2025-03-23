@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -61,7 +61,7 @@ inline void SaveCommand(const std::vector<PString>& params, DEST& dst) {
 }
 
 // master side
-enum PSlaveState {
+enum PSlaveState : int8_t {
   kPSlaveStateNone,
   kPSlaveStateWaitBgsaveStart,  // 有非sync的bgsave进行 要等待
   kPSlaveStateWaitBgsaveEnd,    // sync bgsave正在进行
@@ -77,7 +77,7 @@ struct PSlaveInfo {
 };
 
 // slave side
-enum PReplState {
+enum PReplState : int8_t {
   kPReplStateNone,
   kPReplStateConnecting,
   kPReplStateConnected,

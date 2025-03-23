@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -19,8 +19,8 @@ const int ListenSocket::LISTENQ = 1024;
 
 bool ListenSocket::REUSE_PORT = true;
 
-int ListenSocket::OnReadable(const std::shared_ptr<Connection> &conn, std::string *read_buff) {
-  struct sockaddr_in clientAddr {};
+int ListenSocket::OnReadable(Connection *conn, std::string *read_buff) {
+  sockaddr_in clientAddr{};
   auto newConnFd = Accept(&clientAddr);
   if (newConnFd == 0) {
     ERROR("ListenSocket fd:{},Accept error:{}", Fd(), errno);
@@ -40,9 +40,9 @@ int ListenSocket::OnReadable(const std::shared_ptr<Connection> &conn, std::strin
   return newConnFd;
 }
 
-int ListenSocket::OnWritable() { return 1; }
+int ListenSocket::OnWritable(Connection *conn, BaseEvent *event) { return 1; }
 
-bool ListenSocket::SendPacket(std::string &&msg) { return false; }
+void ListenSocket::SendPacket(std::string &&msg, std::function<void()> addWriteFlag) {}
 
 int ListenSocket::Init() {
   if (!Open()) {

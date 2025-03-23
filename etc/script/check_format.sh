@@ -43,9 +43,9 @@ main() {
     echo "Starting code format check..."
     
     # Find all C/C++ source files
-    while IFS= read -r -d '' file; do
+    find ./src -type f \( -name "*.cpp" -o -name "*.hpp" -o -name "*.c" -o -name "*.h" -o -name "*.cc" \) -print0 | while IFS= read -r -d '' file; do
         check_file "$file"
-    done < <(find ./src -type f \( -name "*.cpp" -o -name "*.hpp" -o -name "*.c" -o -name "*.h" -o -name "*.cc" \) -print0)
+    done
     
     # Output summary
     echo "----------------------------------------"

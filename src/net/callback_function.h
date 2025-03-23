@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -52,24 +52,5 @@ using OnMessage = std::function<void(std::string &&, T &)>;
 template <typename T>
 requires HasSetFdFunction<T>
 using OnClose = std::function<void(T &, std::string &&)>;
-
-// class BaseEvent;
-
-class NetEvent;
-
-// class SocketAddr;
-
-// Auxiliary structure
-struct Connection {
-  explicit Connection(std::unique_ptr<NetEvent> net_event) : net_event_(std::move(net_event)) {}
-
-  ~Connection() = default;
-
-  std::unique_ptr<NetEvent> net_event_;
-
-  SocketAddr addr_;
-
-  int fd_ = 0;
-};
 
 }  // namespace net

@@ -1,4 +1,4 @@
-//  Copyright (c) 2017-present, Arana/Kiwi Community.  All rights reserved.
+//  Copyright (c) 2017-present, arana-db Community.  All rights reserved.
 //  This source code is licensed under the BSD-style license found in the
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
@@ -721,7 +721,54 @@ Status Redis::RPop(const Slice& key, int64_t count, std::vector<std::string>* el
       auto size = static_cast<int64_t>(parsed_lists_meta_value.Count());
       uint64_t version = parsed_lists_meta_value.Version();
       int32_t start_index = 0;
-      auto stop_index = static_cast<int32_t>(count <= size ? count - 1 : size - 1);
+      auto stop_index = static_cast<int32_t>(std::min(count, size) - 1);
+      int32_t cur_index = 0;
+      ListsDataKey lists_data_key(key, version, parsed_lists_meta_value.RightIndex() - 1);
+      rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kListsDataCF]);
+      for (iter->SeekForPrev(lists_data_key.Encode()); iter->Valid() && cur_index <= stop_index;
+           iter->Prev(), ++cur_index) {
+        statistic++;
+        ParsedBaseDataValue parsed_value(iter->value());
+        elements->push_back(parsed_value.UserValue().ToString());
+        batch->Delete(kListsDataCF, iter->key());
+
+        parsed_lists_meta_value.ModifyCount(-1);
+        parsed_lists_meta_value.ModifyRightIndex(-1);
+      }
+      batch->Put(kMetaCF, base_meta_key.Encode(), meta_value);
+      delete iter;
+    }
+  }
+  if (batch->Count() != 0U) {
+    s = batch->Commit();
+    UpdateSpecificKeyStatistics(DataType::kLists, key.ToString(), statistic);
+  }
+  return s;
+}
+
+Status Redis::RPopWithoutLock(const Slice& key, int64_t count, std::vector<std::string>* elements) {
+  uint32_t statistic = 0;
+  elements->clear();
+
+  auto batch = Batch::CreateBatch(this);
+
+  std::string meta_value;
+
+  BaseMetaKey base_meta_key(key);
+  Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
+  if (s.ok()) {
+    if (IsStale(meta_value)) {
+      return Status::NotFound();
+    } else if (!ExpectedMetaValue(DataType::kLists, meta_value)) {
+      return Status::InvalidArgument(fmt::format("WRONGTYPE, key: {}, expect type: {}, get type: {}", key.ToString(),
+                                                 DataTypeStrings[static_cast<int>(DataType::kLists)],
+                                                 DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]));
+    } else {
+      ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+      auto size = static_cast<int64_t>(parsed_lists_meta_value.Count());
+      uint64_t version = parsed_lists_meta_value.Version();
+      int32_t start_index = 0;
+      auto stop_index = static_cast<int32_t>(std::min(count, size) - 1);
       int32_t cur_index = 0;
       ListsDataKey lists_data_key(key, version, parsed_lists_meta_value.RightIndex() - 1);
       rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kListsDataCF]);
@@ -973,6 +1020,7 @@ Status Redis::RPushx(const Slice& key, const std::vector<std::string>& values, u
 }
 
 Status Redis::ListsRename(const Slice& key, Redis* new_inst, const Slice& newkey) {
+  auto batch = Batch::CreateBatch(this);
   std::string meta_value;
   uint32_t statistic = 0;
   const std::vector<std::string> keys = {key.ToString(), newkey.ToString()};
@@ -994,18 +1042,45 @@ Status Redis::ListsRename(const Slice& key, Redis* new_inst, const Slice& newkey
   // copy a new list with newkey
   ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
   statistic = parsed_lists_meta_value.Count();
-  s = new_inst->GetDB()->Put(default_write_options_, handles_[kMetaCF], base_meta_newkey.Encode(), meta_value);
+
+  // todo if value is too many, will slow to rename
+  uint32_t version = parsed_lists_meta_value.Version();
+  uint64_t index = parsed_lists_meta_value.LeftIndex() + 1;
+  uint64_t right_index = parsed_lists_meta_value.RightIndex() - 1;
+  ListsDataKey base_lists_data_key(key, version, index);
+  std::vector<std::string> list_nodes;
+  rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kListsDataCF]);
+  uint64_t current_index = index;
+  for (iter->Seek(base_lists_data_key.Encode()); iter->Valid() && current_index <= right_index;
+       iter->Next(), current_index++) {
+    ParsedBaseDataValue parsed_value(iter->value());
+    list_nodes.push_back(parsed_value.UserValue().ToString());
+  }
+  delete iter;
+
+  // write new data value
+  current_index = index;
+  for (const auto& node : list_nodes) {
+    ListsDataKey new_lists_data_key(newkey, version, current_index++);
+    BaseDataValue n_val(node);
+    batch->Put(kListsDataCF, new_lists_data_key.Encode(), n_val.Encode());
+  }
+  // write new meta_key
+  batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
   new_inst->UpdateSpecificKeyStatistics(DataType::kLists, newkey.ToString(), statistic);
 
   // ListsDel key
   parsed_lists_meta_value.InitialMetaValue();
   s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
+  batch->Delete(kListsDataCF, base_meta_key.Encode());
   UpdateSpecificKeyStatistics(DataType::kLists, key.ToString(), statistic);
 
-  return s;
+  return batch->Commit();
 }
 
 Status Redis::ListsRenamenx(const Slice& key, Redis* new_inst, const Slice& newkey) {
+  auto batch = Batch::CreateBatch(this);
+
   std::string meta_value;
   uint32_t statistic = 0;
   const std::vector<std::string> keys = {key.ToString(), newkey.ToString()};
@@ -1029,22 +1104,48 @@ Status Redis::ListsRenamenx(const Slice& key, Redis* new_inst, const Slice& newk
   ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
   s = new_inst->GetDB()->Get(default_read_options_, handles_[kMetaCF], base_meta_newkey.Encode(), &new_meta_value);
   if (s.ok()) {
-    if (IsStale(new_meta_value)) {
+    ParsedListsMetaValue parsed_lists_new_meta_value(new_meta_value);
+    if (parsed_lists_new_meta_value.Count() != 0 || parsed_lists_new_meta_value.IsStale()) {
       return Status::Corruption();  // newkey already exists.
     }
   }
-  ParsedSetsMetaValue parsed_lists_new_meta_value(&new_meta_value);
+  // ParsedListsMetaValue parsed_lists_new_meta_value(&new_meta_value);
   // copy a new list with newkey
   statistic = parsed_lists_meta_value.Count();
-  s = new_inst->GetDB()->Put(default_write_options_, handles_[kMetaCF], base_meta_newkey.Encode(), meta_value);
+
+  // todo if value is too many, will slow to rename
+  uint32_t version = parsed_lists_meta_value.Version();
+  uint64_t index = parsed_lists_meta_value.LeftIndex() + 1;
+  uint64_t right_index = parsed_lists_meta_value.RightIndex() - 1;
+  ListsDataKey base_lists_data_key(key, version, index);
+  std::vector<std::string> list_nodes;
+  rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kListsDataCF]);
+  uint64_t current_index = index;
+  for (iter->Seek(base_lists_data_key.Encode()); iter->Valid() && current_index <= right_index;
+       iter->Next(), current_index++) {
+    ParsedBaseDataValue parsed_value(iter->value());
+    list_nodes.push_back(parsed_value.UserValue().ToString());
+  }
+  delete iter;
+
+  // write new data value
+  current_index = index;
+  for (const auto& node : list_nodes) {
+    ListsDataKey new_lists_data_key(newkey, version, current_index++);
+    BaseDataValue n_val(node);
+    batch->Put(kListsDataCF, new_lists_data_key.Encode(), n_val.Encode());
+  }
+  // write new meta_key
+  batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
   new_inst->UpdateSpecificKeyStatistics(DataType::kLists, newkey.ToString(), statistic);
 
   // ListsDel key
   parsed_lists_meta_value.InitialMetaValue();
   s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
+  batch->Delete(kListsDataCF, base_meta_key.Encode());
   UpdateSpecificKeyStatistics(DataType::kLists, key.ToString(), statistic);
 
-  return s;
+  return batch->Commit();
 }
 
 void Redis::ScanLists() {

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -16,7 +16,7 @@
 #include <memory>
 #include <utility>
 
-#include "callback_function.h"
+#include "connection.h"
 #include "listen_socket.h"
 #include "net_event.h"
 #include "timer.h"
@@ -26,7 +26,7 @@ namespace net {
 class BaseEvent : public std::enable_shared_from_this<BaseEvent> {
  public:
   // Currently, there are two types of multiplexing: epoll and kqueue
-  enum {
+  enum : std::uint8_t {
     EVENT_TYPE_EPOLL = 1,
     EVENT_TYPE_KQUEUE,
   };
@@ -34,7 +34,7 @@ class BaseEvent : public std::enable_shared_from_this<BaseEvent> {
   // Whether to enable read/write separation. If read/write separation is enabled,
   // read and write are in different multiplexes.
   // If not, write events need to be processed in read multiplexes
-  enum {
+  enum : std::uint8_t {
     EVENT_MODE_READ = (1 << 0),   // only read
     EVENT_MODE_WRITE = (1 << 1),  // only write
   };
@@ -51,17 +51,17 @@ class BaseEvent : public std::enable_shared_from_this<BaseEvent> {
 
   virtual ~BaseEvent() = default;
 
-  // add fd to poll
-  virtual void AddEvent(uint64_t id, int fd, int mask) = 0;
+  // add conn to poll
+  virtual void AddEvent(Connection *conn, int mask) = 0;
 
   // delete fd from poll
   virtual void DelEvent(int fd) = 0;
 
   // add write event
-  virtual void AddWriteEvent(uint64_t id, int fd) = 0;
+  virtual void AddWriteEvent(Connection *conn) = 0;
 
   // delete write event
-  virtual void DelWriteEvent(uint64_t id, int fd) = 0;
+  virtual void DelWriteEvent(Connection *conn) = 0;
 
   // poll event
   virtual void EventPoll() = 0;
@@ -82,19 +82,17 @@ class BaseEvent : public std::enable_shared_from_this<BaseEvent> {
 
   int EvFd() const { return evFd_; }
 
-  void SetOnCreate(std::function<void(uint64_t, std::shared_ptr<Connection>)> &&onCreate) {
-    onCreate_ = std::move(onCreate);
-  }
+  void SetOnCreate(std::function<void(std::shared_ptr<Connection>)> &&onCreate) { onCreate_ = std::move(onCreate); }
 
   void SetOnMessage(std::function<void(uint64_t, std::string &&)> &&onMessage) { onMessage_ = std::move(onMessage); }
 
   void SetOnClose(std::function<void(uint64_t, std::string &&)> &&onClose) { onClose_ = std::move(onClose); }
 
-  void SetGetConn(std::function<std::shared_ptr<Connection>(uint64_t)> &&getConn) { getConn_ = std::move(getConn); }
+  // void SetGetConn(std::function<std::shared_ptr<Connection>(uint64_t)> &&getConn) { getConn_ = std::move(getConn); }
 
   int8_t Type() const { return type_; }
 
-  std::shared_ptr<net::ListenSocket> getListenSocket(int fd) {
+  std::shared_ptr<ListenSocket> getListenSocket(int fd) {
     for (const auto &listen : listen_sockets_) {
       if (fd == listen->Fd()) {
         return listen;
@@ -123,7 +121,7 @@ class BaseEvent : public std::enable_shared_from_this<BaseEvent> {
   std::vector<std::shared_ptr<ListenSocket>> listen_sockets_;
 
   // callback function when a new connection is created
-  std::function<void(uint64_t, std::shared_ptr<Connection>)> onCreate_;
+  std::function<void(std::shared_ptr<Connection>)> onCreate_;
 
   // callback function when a message is received
   std::function<void(uint64_t, std::string &&)> onMessage_;
@@ -132,7 +130,7 @@ class BaseEvent : public std::enable_shared_from_this<BaseEvent> {
   std::function<void(uint64_t, std::string &&)> onClose_;
 
   // get connection by connID
-  std::function<std::shared_ptr<Connection>(uint64_t)> getConn_;
+  // std::function<std::shared_ptr<Connection>(uint64_t)> getConn_;
 };
 
 }  // namespace net

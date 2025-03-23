@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -46,6 +46,7 @@ struct SocketAddr {
     if (::inet_pton(AF_INET6, ip.c_str(), &addr_.addr6_.sin6_addr) == 1) {
       addr_.addr6_.sin6_family = AF_INET6;
       addr_.addr6_.sin6_port = htons(hostPort);
+      addr_.addr6_.sin6_scope_id = 0;
       return;
     }
     Clear();  // Reset the address if parsing fails

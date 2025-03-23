@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -57,6 +57,12 @@ static void SignalSetup() {
 
 const uint32_t KiwiDB::kRunidSize = 40;
 
+static void WarnDefaultConfig() {
+  std::cerr << "*********************************************************\n";
+  std::cerr << "* Warning: Use the default configuration to start Kiwi. *\n";
+  std::cerr << "*********************************************************\n";
+}
+
 static void Usage() {
   std::cerr << "kiwi is the kiwi server.\n";
   std::cerr << "\n";
@@ -77,12 +83,22 @@ static void Usage() {
   std::cerr << "  kiwi --port 7777 --slaveof 127.0.0.1:8888\n";
 }
 
+static void version() {
+  std::cerr << "kiwi Server version: " << KIWI_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << '\n';
+  std::cerr << "kiwi Server Build Type: " << KIWI_BUILD_TYPE << '\n';
+  std::cerr << "kiwi Server Build Date: " << KIWI_BUILD_DATE << '\n';
+  std::cerr << "kiwi Server Build GIT SHA: " << KIWI_GIT_COMMIT_ID << '\n';
+}
+
 // Handle the argc & argv
 bool KiwiDB::ParseArgs(int argc, char* argv[]) {
   static struct option long_options[] = {
-      {"version", no_argument, 0, 'v'},       {"help", no_argument, 0, 'h'},
-      {"port", required_argument, 0, 'p'},    {"loglevel", required_argument, 0, 'l'},
-      {"slaveof", required_argument, 0, 's'}, {"redis-compatible-mode", no_argument, 0, 'c'},
+      {.name = "version", .has_arg = no_argument, .flag = nullptr, .val = 'v'},
+      {.name = "help", .has_arg = no_argument, .flag = nullptr, .val = 'h'},
+      {.name = "port", .has_arg = required_argument, .flag = nullptr, .val = 'p'},
+      {.name = "loglevel", .has_arg = required_argument, .flag = nullptr, .val = 'l'},
+      {.name = "slaveof", .has_arg = required_argument, .flag = nullptr, .val = 's'},
+      {.name = "redis-compatible-mode", .has_arg = no_argument, .flag = nullptr, .val = 'c'},
   };
   // kiwi [/path/to/kiwi.conf] [options]
   if (argv == nullptr) {
@@ -92,14 +108,17 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
     struct stat st {};
     if (stat(argv[1], &st) == 0 && S_ISREG(st.st_mode) && ::access(argv[1], R_OK) == 0) {
       options_.SetConfigName(argv[1]);
+      std::cerr << "Configuration file path: [" << argv[1] << "]\n";
       argc = argc - 1;
       argv = argv + 1;
     } else {
       std::cerr << "Configuration file [" << argv[1] << "]: " << strerror(errno) << "\n";
       return false;
     }
+  } else {
+    WarnDefaultConfig();
   }
-  while (1) {
+  while (true) {
     int this_option_optind = optind ? optind : 1;
     int option_index = 0;
     int c;
@@ -110,16 +129,13 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
 
     switch (c) {
       case 'v': {
-        std::cerr << "kiwi Server version: " << KIWI_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << std::endl;
-        std::cerr << "kiwi Server Build Type: " << KIWI_BUILD_TYPE << std::endl;
-        std::cerr << "kiwi Server Build Date: " << KIWI_BUILD_DATE << std::endl;
-        std::cerr << "kiwi Server Build GIT SHA: " << KIWI_GIT_COMMIT_ID << std::endl;
+        version();
         std::exit(0);
         break;
       }
       case 'h': {
         Usage();
-        exit(0);
+        std::exit(0);
         break;
       }
       case 'p': {
@@ -131,8 +147,8 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
         break;
       }
       case 's': {
-        unsigned int optarg_long = static_cast<unsigned int>(strlen(optarg));
-        char* str = (char*)calloc(optarg_long, sizeof(char*));
+        auto optarg_long = static_cast<unsigned int>(strlen(optarg));
+        char* str = static_cast<char*>(calloc(optarg_long, sizeof(char)));
         if (str) {
           if (sscanf(optarg, "%s:%hu", str, &master_port_) != 2) {
             ERROR("Invalid slaveof format.");
@@ -151,7 +167,12 @@ bool KiwiDB::ParseArgs(int argc, char* argv[]) {
         break;
       }
       case '?': {
-        std::cerr << "Unknow option " << std::endl;
+        std::cerr << "Unknow option \n";
+        return false;
+        break;
+      }
+      default: {
+        std::cerr << "Unknow option \n";
         return false;
         break;
       }
@@ -166,6 +187,57 @@ void KiwiDB::OnNewConnection(uint64_t connId, std::shared_ptr<kiwi::PClient>& cl
   client->OnConnect();
   // add new PClient to clients
   ClientMap::getInstance().AddClient(client->GetUniqueID(), client);
+}
+
+void KiwiDB::ScanEvictedBlockedConnsOfBlrpop() {
+  std::vector<kiwi::BlockKey> keys_need_remove;
+
+  std::lock_guard<std::shared_mutex> map_lock(block_mtx_);
+  auto& key_to_blocked_conns = g_kiwi->GetMapFromKeyToConns();
+  for (auto& it : key_to_blocked_conns) {
+    auto& conns_list = it.second;
+    for (auto conn_node = conns_list->begin(); conn_node != conns_list->end();) {
+      auto conn_ptr = conn_node->GetBlockedClient();
+      if (conn_node->GetBlockedClient()->State() == ClientState::kClosed) {
+        conn_node = conns_list->erase(conn_node);
+        CleanBlockedNodes(conn_ptr);
+      } else if (conn_node->IsExpired()) {
+        conn_ptr->AppendString("");
+        conn_ptr->SendPacket();
+        conn_node = conns_list->erase(conn_node);
+        CleanBlockedNodes(conn_ptr);
+      } else {
+        ++conn_node;
+      }
+    }
+    if (conns_list->empty()) {
+      keys_need_remove.push_back(it.first);
+    }
+  }
+
+  for (auto& remove_key : keys_need_remove) {
+    key_to_blocked_conns.erase(remove_key);
+  }
+}
+
+void KiwiDB::CleanBlockedNodes(const std::shared_ptr<kiwi::PClient>& client) {
+  std::vector<kiwi::BlockKey> blocked_keys;
+  for (const auto& key : client->Keys()) {
+    blocked_keys.emplace_back(client->GetCurrentDB(), key);
+  }
+  auto& key_to_blocked_conns = g_kiwi->GetMapFromKeyToConns();
+  for (auto& blocked_key : blocked_keys) {
+    const auto& it = key_to_blocked_conns.find(blocked_key);
+    if (it != key_to_blocked_conns.end()) {
+      auto& conns_list = it->second;
+      for (auto conn_node = conns_list->begin(); conn_node != conns_list->end(); ++conn_node) {
+        if (conn_node->GetBlockedClient()->GetConnId() == client->GetConnId()) {
+          conns_list->erase(conn_node);
+          break;
+        }
+      }
+    }
+  }
 }
 
 bool KiwiDB::Init() {
@@ -187,6 +259,8 @@ bool KiwiDB::Init() {
 
   auto num = g_config.worker_threads_num + g_config.slave_threads_num;
   options_.SetThreadNum(num);
+
+  options_.SetMaxClients(g_config.max_clients);
 
   // now we only use fast cmd thread pool
   auto status = cmd_threads_.Init(g_config.fast_cmd_threads_num, 1, "kiwi-cmd");
@@ -240,6 +314,10 @@ bool KiwiDB::Init() {
   auto timerTask = std::make_shared<net::CommonTimerTask>(1000);
   timerTask->SetCallback([]() { PREPL.Cron(); });
   event_server_->AddTimerTask(timerTask);
+
+  auto BLRPopTimerTask = std::make_shared<net::CommonTimerTask>(250);
+  BLRPopTimerTask->SetCallback(std::bind(&KiwiDB::ScanEvictedBlockedConnsOfBlrpop, this));
+  event_server_->AddTimerTask(BLRPopTimerTask);
 
   time(&start_time_s_);
 
