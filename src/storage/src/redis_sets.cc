@@ -1,4 +1,4 @@
-//  Copyright (c) 2017-present, Arana/Kiwi Community.  All rights reserved.
+//  Copyright (c) 2017-present, arana-db Community.  All rights reserved.
 //  This source code is licensed under the BSD-style license found in the
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
@@ -870,6 +870,7 @@ rocksdb::Status Redis::SPop(const Slice& key, std::vector<std::string>* members,
         }
 
         if (!parsed_sets_meta_value.CheckModifyCount(static_cast<int32_t>(-cnt))) {
+          delete iter;
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(static_cast<int32_t>(-cnt));

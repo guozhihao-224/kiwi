@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -31,8 +31,11 @@ class EpollEvent : public BaseEvent {
   // Initialize the epoll event
   bool Init() override;
 
+  // add fd to poll
+  void AddEvent(int fd, int mask) const;
+
   // Add event to epoll, mask is the event type
-  void AddEvent(uint64_t id, int fd, int mask) override;
+  void AddEvent(Connection *conn, int mask) override;
 
   // Delete event from epoll
   void DelEvent(int fd) override;
@@ -41,10 +44,10 @@ class EpollEvent : public BaseEvent {
   void EventPoll() override;
 
   // Add write event to epoll
-  void AddWriteEvent(uint64_t id, int fd) override;
+  void AddWriteEvent(Connection *conn) override;
 
   // Delete write event from epoll
-  void DelWriteEvent(uint64_t id, int fd) override;
+  void DelWriteEvent(Connection *conn) override;
 
   // Handle read event
   void EventRead();
@@ -53,10 +56,10 @@ class EpollEvent : public BaseEvent {
   void EventWrite();
 
   // Do read event
-  void DoRead(const epoll_event &event, const std::shared_ptr<Connection> &conn);
+  void DoRead(const epoll_event &event, Connection *conn, const std::shared_ptr<ListenSocket> &listen);
 
   // Do write event
-  void DoWrite(const epoll_event &event, const std::shared_ptr<Connection> &conn);
+  void DoWrite(const epoll_event &event, Connection *conn);
 
   // Handle error event
   void DoError(const epoll_event &event, std::string &&err);

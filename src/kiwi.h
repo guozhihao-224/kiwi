@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -40,7 +40,7 @@ class KiwiDB final {
   KiwiDB() = default;
   ~KiwiDB() = default;
 
-  bool ParseArgs(int ac, char* av[]);
+  bool ParseArgs(int argc, char* argv[]);
   const PString& GetConfigName() const { return options_.GetConfigName(); }
 
   bool Init();
@@ -63,6 +63,16 @@ class KiwiDB final {
     event_server_->SendPacket(client, std::move(msg));
   }
 
+  std::unordered_map<kiwi::BlockKey, std::unique_ptr<std::list<kiwi::BlockedConnNode>>, kiwi::BlockKeyHash>&
+  GetMapFromKeyToConns() {
+    return key_to_blocked_conns_;
+  }
+
+  std::shared_mutex& GetBlockMtx() { return block_mtx_; };
+
+  void ScanEvictedBlockedConnsOfBlrpop();
+  // erase all blocked nodes of this client
+  void CleanBlockedNodes(const std::shared_ptr<kiwi::PClient>& client);
   void SendPacket2Client(const std::shared_ptr<kiwi::PClient>& client, std::string&& msg) {
     event_server_->SendPacket(client, std::move(msg));
   }
@@ -93,6 +103,21 @@ class KiwiDB final {
   uint32_t cmd_id_ = 0;
 
   time_t start_time_s_ = 0;
+
+  /*
+   *  Blpop/BRpop used
+   */
+  /*  key_to_blocked_conns_:
+   *  mapping from key to a list that stored the nodes of client-connections that
+   *  were blocked by command blpop/brpop with key.
+   */
+  std::unordered_map<kiwi::BlockKey, std::unique_ptr<std::list<kiwi::BlockedConnNode>>, kiwi::BlockKeyHash>
+      key_to_blocked_conns_;
+
+  /*
+   * latch of above map.
+   */
+  std::shared_mutex block_mtx_;
 };
 
 extern std::unique_ptr<KiwiDB> g_kiwi;

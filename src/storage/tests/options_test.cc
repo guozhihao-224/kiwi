@@ -1,10 +1,9 @@
-//  Copyright (c) 2017-present, Arana/Kiwi Community.  All rights reserved.
+//  Copyright (c) 2017-present, arana-db Community.  All rights reserved.
 //  This source code is licensed under the BSD-style license found in the
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
 #include <gtest/gtest.h>
-#include <iostream>
 #include <unordered_map>
 
 #include "storage/storage.h"
@@ -14,9 +13,11 @@ using namespace storage;
 class StorageOptionsTest : public ::testing::Test {
  public:
   StorageOptionsTest() = default;
+
   ~StorageOptionsTest() override = default;
 
   static void SetUpTestSuite() {}
+
   static void TearDownTestSuite() {}
 
   StorageOptions storage_options;
@@ -54,7 +55,7 @@ TEST_F(StorageOptionsTest, ResetOptionsTest) {
   ASSERT_EQ(storage_options.options.max_background_compactions, 32);
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

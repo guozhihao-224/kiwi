@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -159,6 +159,9 @@ void PReplication::SendToSlaves(const std::vector<PString>& params) {
 void PReplication::Cron() {
   static unsigned pingCron = 0;
 
+  // Every 50 calls to Cron, this method will traverse the slaves_ list,
+  // sending PING requests to the online slave nodes to confirm their status.
+  // If the reference to a slave node has become invalid, it will be removed from the list.
   if (pingCron++ % 50 == 0) {
     for (auto it = slaves_.begin(); it != slaves_.end();) {
       auto cli = it->lock();
@@ -300,7 +303,7 @@ void PReplication::SaveTmpRdb(const char* data, std::size_t& len) {
   //    masterInfo_.state = kPReplStateOnline;
   //    masterInfo_.downSince = 0;
   //  }
-  return;
+  // return;
 }
 
 void PReplication::SetMaster(const std::shared_ptr<PClient>& cli) { master_ = cli; }
@@ -426,7 +429,7 @@ PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
     kstd::String2int(params[2].c_str(), params[2].size(), &tmpPort);
     uint16_t port = static_cast<uint16_t>(tmpPort);
 
-    net::SocketAddr reqMaster(params[1].c_str(), port);
+    net::SocketAddr reqMaster(params[1], port);
 
     if (port > 0 && PREPL.GetMasterAddr() != reqMaster) {
       PREPL.SetMasterAddr(params[1].c_str(), port);

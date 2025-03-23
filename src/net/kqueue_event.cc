@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -26,7 +26,7 @@ bool KqueueEvent::Init() {
   }
   if (mode_ & EVENT_MODE_READ) {
     for (auto &listenSocket : listen_sockets_) {
-      AddEvent(listenSocket->Fd(), listenSocket->Fd(), EVENT_READ);
+      AddEvent(listenSocket->Fd(), EVENT_READ);
     }
   }
   if (pipe(pipeFd_) == -1) {
@@ -34,21 +34,23 @@ bool KqueueEvent::Init() {
     return false;
   }
 
-  AddEvent(0, pipeFd_[0], EVENT_READ);
+  AddEvent(pipeFd_[0], EVENT_READ);
   return true;
 }
 
-void KqueueEvent::AddEvent(uint64_t id, int fd, int mask) {
+void KqueueEvent::AddEvent(int fd, int mask) const {
   struct kevent change;
-#  ifdef HAVE_64BIT
-  uint64_t udata = id;
-#  else
-  uint64_t *udata = new uint64_t;
-  *udata = id;
-#  endif
-  EV_SET(&change, fd, mask, EV_ADD, 0, 0, reinterpret_cast<void *>(udata));
+  EV_SET(&change, fd, mask, EV_ADD, 0, 0, nullptr);
   if (kevent(EvFd(), &change, 1, nullptr, 0, nullptr) == -1) {
-    ERROR("KqueueEvent AddEvent id:{},EvFd:{}，fd:{}, kevent error:{}", id, EvFd(), fd, errno);
+    ERROR("KqueueEvent AddEvent EvFd:{},fd:{}, epoll add error errno:{}", EvFd(), fd, errno);
+  }
+}
+
+void KqueueEvent::AddEvent(Connection *conn, int mask) {
+  struct kevent change;
+  EV_SET(&change, conn->fd_, mask, EV_ADD, 0, 0, conn);
+  if (kevent(EvFd(), &change, 1, nullptr, 0, nullptr) == -1) {
+    ERROR("KqueueEvent AddEvent id:{},EvFd:{}，fd:{}, kevent error:{}", conn->conn_id_, EvFd(), conn->fd_, errno);
   }
 }
 
@@ -71,13 +73,14 @@ void KqueueEvent::DelEvent(int fd) {
   }
 }
 
-void KqueueEvent::AddWriteEvent(uint64_t id, int fd) { AddEvent(id, fd, EVENT_WRITE); }
+void KqueueEvent::AddWriteEvent(Connection *conn) { AddEvent(conn, EVENT_WRITE); }
 
-void KqueueEvent::DelWriteEvent(uint64_t id, int fd) {
+void KqueueEvent::DelWriteEvent(Connection *conn) {
   struct kevent change;
-  EV_SET(&change, fd, EVENT_WRITE, EV_DELETE, 0, 0, nullptr);
+  EV_SET(&change, conn->fd_, EVENT_WRITE, EV_DELETE, 0, 0, nullptr);
   if (kevent(EvFd(), &change, 1, nullptr, 0, nullptr) == -1) {
-    ERROR("KqueueEvent Del write Event id:{},EvFd:{}，fd:{}, kevent error:{}", id, EvFd(), fd, errno);
+    ERROR("KqueueEvent Del write Event id:{},EvFd:{}，fd:{}, kevent error:{}", conn->conn_id_, EvFd(), conn->fd_,
+          errno);
   }
 }
 
@@ -107,26 +110,18 @@ void KqueueEvent::EventRead() {
         DoError(events[i], "");
         continue;
       }
-      std::shared_ptr<Connection> conn;
+      if (events[i].ident == pipeFd_[0]) {
+        continue;
+      }
+      Connection *conn = nullptr;
       if (events[i].filter == EVENT_READ) {
-        if (!getListenSocket(events[i].ident)) {
-#  ifdef HAVE_64BIT
-          auto connId = reinterpret_cast<uint64_t>(events[i].udata);
-#  else
-          auto _connId = reinterpret_cast<uint64_t *>(events[i].udata);
-          uint64_t connId = *_connId;
-#  endif
-          conn = getConn_(connId);
+        auto listen = getListenSocket(events[i].ident);
+        if (!listen) {
+          conn = static_cast<Connection *>(events[i].udata);
         }
-        DoRead(events[i], conn);
+        DoRead(events[i], conn, listen);
       } else if ((mode_ & EVENT_MODE_WRITE) && events[i].filter == EVENT_WRITE) {
-#  ifdef HAVE_64BIT
-        auto connId = reinterpret_cast<uint64_t>(events[i].udata);
-#  else
-        auto _connId = reinterpret_cast<uint64_t *>(events[i].udata);
-        uint64_t connId = *_connId;
-#  endif
-        conn = getConn_(connId);
+        conn = static_cast<Connection *>(events[i].udata);
         if (!conn) {
           DoError(events[i], "write conn is null");
           continue;
@@ -149,13 +144,7 @@ void KqueueEvent::EventWrite() {
         DoError(events[i], "EventWrite error");
         continue;
       }
-#  ifdef HAVE_64BIT
-      auto connId = reinterpret_cast<uint64_t>(events[i].udata);
-#  else
-      auto _connId = reinterpret_cast<uint64_t *>(events[i].udata);
-      uint64_t connId = *_connId;
-#  endif
-      auto conn = getConn_(connId);
+      auto conn = static_cast<Connection *>(events[i].udata);
       if (!conn) {
         DoError(events[i], "write conn is null");
         continue;
@@ -167,42 +156,36 @@ void KqueueEvent::EventWrite() {
   }
 }
 
-void KqueueEvent::DoRead(const struct kevent &event, const std::shared_ptr<Connection> &conn) {
-  if (auto s = getListenSocket(event.ident); s) {
+void KqueueEvent::DoRead(const struct kevent &event, Connection *conn, const std::shared_ptr<ListenSocket> &listen) {
+  if (listen) {
     auto newConn = std::make_shared<Connection>(nullptr);
-    auto connFd = s->OnReadable(newConn, nullptr);
-    onCreate_(connFd, newConn);
-  } else if (conn) {
+    auto connFd = listen->OnReadable(newConn.get(), nullptr);
+    if (connFd < 0) {
+      DoError(event, "accept error");
+      return;
+    }
+    onCreate_(newConn);
+    return;
+  }
+  if (conn) {
     std::string readBuff;
     int ret = conn->net_event_->OnReadable(conn, &readBuff);
     if (ret == NE_ERROR) {
       DoError(event, "read error,errno: " + std::to_string(errno));
       return;
-    } else if (ret == NE_CLOSE) {
+    }
+    if (ret == NE_CLOSE) {
       DoError(event, "");
       return;
     }
-#  ifdef HAVE_64BIT
-    auto connId = reinterpret_cast<uint64_t>(event.udata);
-#  else
-    auto _connId = reinterpret_cast<uint64_t *>(event.udata);
-    uint64_t connId = *_connId;
-#  endif
-    onMessage_(connId, std::move(readBuff));
+    onMessage_(conn->conn_id_, std::move(readBuff));
   } else {
     DoError(event, "DoRead error");
   }
 }
 
-void KqueueEvent::DoWrite(const struct kevent &event, const std::shared_ptr<Connection> &conn) {
-#  ifdef HAVE_64BIT
-  auto conn_id = reinterpret_cast<uint64_t>(event.udata);
-#  else
-  auto _conn_id = reinterpret_cast<uint64_t *>(event.udata);
-  uint64_t conn_id = *_conn_id;
-  delete _conn_id;
-#  endif
-  auto ret = conn->net_event_->OnWritable(conn_id, conn->fd_, this);
+void KqueueEvent::DoWrite(const struct kevent &event, Connection *conn) {
+  auto ret = conn->net_event_->OnWritable(conn, this);
   if (ret == NE_ERROR) {
     DoError(event, "DoWrite error,errno: " + std::to_string(errno));
     return;
@@ -210,14 +193,12 @@ void KqueueEvent::DoWrite(const struct kevent &event, const std::shared_ptr<Conn
 }
 
 void KqueueEvent::DoError(const struct kevent &event, std::string &&err) {
-#  ifdef HAVE_64BIT
-  auto connId = reinterpret_cast<uint64_t>(event.udata);
-#  else
-  auto _connId = reinterpret_cast<uint64_t *>(event.udata);
-  uint64_t connId = *_connId;
-  delete _connId;
-#  endif
-  onClose_(connId, std::move(err));
+  auto conn = static_cast<Connection *>(event.udata);
+  if (!conn) {
+    ERROR("DoError conn is null");
+    return;
+  }
+  onClose_(conn->conn_id_, std::move(err));
 }
 
 }  // namespace net

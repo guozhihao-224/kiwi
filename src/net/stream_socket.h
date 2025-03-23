@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -25,9 +25,9 @@ class StreamSocket : public BaseSocket {
 
   int Init() override { return 1; };
 
-  int OnReadable(const std::shared_ptr<Connection> &conn, std::string *readBuff) override;
+  int OnReadable(Connection *conn, std::string *readBuff) override;
 
-  int OnWritable(uint64_t id, int fd, BaseEvent *event) override;
+  int OnWritable(Connection *conn, BaseEvent *event) override;
 
   void SendPacket(std::string &&msg, std::function<void()> addWriteFlag) override;
 

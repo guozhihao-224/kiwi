@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -43,6 +43,31 @@ class RPopCmd : public BaseCmd {
  private:
   void DoCmd(PClient* client) override;
 };
+
+class BLPopCmd : public BaseCmd {
+ public:
+  BLPopCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+  int64_t expire_time_{0};
+};
+
+class BRPopCmd : public BaseCmd {
+ public:
+  BRPopCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+  int64_t expire_time_{0};
+};
+
 class LRangeCmd : public BaseCmd {
  public:
   LRangeCmd(const std::string& name, int16_t arity);

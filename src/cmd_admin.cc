@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -97,7 +97,7 @@ void FlushdbCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "flushdb failed");
     return;
   }
-  auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
+  [[maybe_unused]] auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
   client->SetRes(CmdRes::kOK);
 }
 
@@ -117,7 +117,7 @@ void FlushallCmd::DoCmd(PClient* client) {
 
     auto s = STORE_INST.GetBackend(i)->Open();
     assert(s.ok());
-    auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
+    [[maybe_unused]] auto f = std::async(std::launch::async, [&path_temp]() { kstd::DeleteDir(path_temp); });
     STORE_INST.GetBackend(i).get()->UnLock();
   }
   client->SetRes(CmdRes::kOK);
@@ -226,9 +226,10 @@ bool HelloCmd::DoInitial(PClient* client) {
 
 void HelloCmd::DoCmd(PClient* client) {
   size_t argc = client->argv_.size();
+  // skip command arg: hello 2, start from the third arg
   size_t next_arg = 2;
 
-  for (; next_arg < argc; next_arg++) {
+  while (next_arg < argc) {
     size_t more_args = argc - next_arg;
     const std::string& arg = client->argv_[next_arg];
     // TODO(marsevilspirit): support auth acl
@@ -236,22 +237,28 @@ void HelloCmd::DoCmd(PClient* client) {
     // now only support hello auth password
     // do not support username (need acl)
     if ((strcasecmp(arg.data(), "SETNAME") == 0) && more_args) {
-      client->SetName(client->argv_[next_arg + 1]);
-      next_arg++;
+      auto& name = client->argv_[next_arg + 1];
+      if (name.find(' ') != std::string::npos) {
+        client->SetRes(CmdRes::kErrOther, "invalid name: cannot contain spaces");
+        return;
+      }
+      client->SetName(name);
+      next_arg += 2;
     } else if (strcasecmp(arg.data(), "AUTH") == 0 && more_args) {
       authed_ = true;
       if (client->GetAuth()) {
         continue;
       }
-      if (client->argv_[next_arg + 1] != g_config.password) {
+      auto& input_password = client->argv_[next_arg + 1];
+      if (input_password != g_config.password) {
         client->SetRes(CmdRes::kErrOther, "invalid password");
         return;
       } else {
         client->SetAuth();
       }
-      next_arg++;
+      next_arg += 2;
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "Syntax error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameHello);
       return;
     }
   }
@@ -329,7 +336,7 @@ bool InfoCmd::DoInitial(PClient* client) {
       return false;
     }
   } else {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameInfo);
     return false;
   }
   return true;
@@ -389,25 +396,25 @@ void InfoCmd::DoCmd(PClient* client) {
 * INFO raft
 * Querying Node Information.
 * Reply:
-*   raft_node_id:595100767
+*   raft_group_id:629f074d91999a1830e26ac060bce411
+    raft_node_id:kiwi:127.0.0.1:9231:0:0
+    raft_peer_id:127.0.0.1:9231:0:0
     raft_state:up
-    raft_role:follower
-    raft_is_voting:yes
-    raft_leader_id:1733428433
-    raft_current_term:1
+    raft_role:LEADER
+    raft_leader_id:127.0.0.1:9231:0:0
+    raft_current_term:2
     raft_num_nodes:2
-    raft_num_voting_nodes:2
-    raft_node1:id=1733428433,state=connected,voting=yes,addr=localhost,port=5001,last_conn_secs=5,conn_errors=0,conn_oks=1
+    raft_node0:addr=127.0.0.1,port=9231
 */
-void InfoCmd::InfoRaft(std::string& message) {
+void InfoCmd::InfoRaft(std::string& info) {
   if (!RAFT_INST.IsInitialized()) {
-    message += "-ERR Not a cluster member.\r\n";
+    info += "-ERR Not a cluster member.\r\n";
     return;
   }
 
   auto node_status = RAFT_INST.GetNodeStatus();
   if (node_status.state == braft::State::STATE_END) {
-    message += "-ERR Node is not initialized.\r\n";
+    info += "-ERR Node is not initialized.\r\n";
     return;
   }
 
@@ -440,7 +447,7 @@ void InfoCmd::InfoRaft(std::string& message) {
     }
   }
 
-  message.append(tmp_stream.str());
+  info.append(tmp_stream.str());
 }
 
 void InfoCmd::InfoServer(std::string& info) {
@@ -466,7 +473,7 @@ void InfoCmd::InfoServer(std::string& info) {
   tmp_stream << "run_id:" << static_cast<std::string>(g_config.run_id) << "\r\n";
   tmp_stream << "tcp_port:" << g_config.port << "\r\n";
   tmp_stream << "uptime_in_seconds:" << (current_time_s - g_kiwi->GetStartTime()) << "\r\n";
-  tmp_stream << "uptime_in_days:" << (current_time_s / (24 * 3600) - g_kiwi->GetStartTime() / (24 * 3600) + 1)
+  tmp_stream << "uptime_in_days:" << ((current_time_s / (24 * 3600)) - (g_kiwi->GetStartTime() / (24 * 3600)) + 1)
              << "\r\n";
   tmp_stream << "config_file:" << g_kiwi->GetConfigName() << "\r\n";
 
@@ -490,16 +497,16 @@ void InfoCmd::InfoCPU(std::string& info) {
   std::stringstream tmp_stream;
   tmp_stream << "# CPU" << "\r\n";
   tmp_stream << "used_cpu_sys:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(self_ru.ru_stime.tv_sec) + static_cast<float>(self_ru.ru_stime.tv_usec) / 1000000
+             << static_cast<float>(self_ru.ru_stime.tv_sec) + (static_cast<float>(self_ru.ru_stime.tv_usec) / 1000000)
              << "\r\n";
   tmp_stream << "used_cpu_user:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(self_ru.ru_utime.tv_sec) + static_cast<float>(self_ru.ru_utime.tv_usec) / 1000000
+             << static_cast<float>(self_ru.ru_utime.tv_sec) + (static_cast<float>(self_ru.ru_utime.tv_usec) / 1000000)
              << "\r\n";
   tmp_stream << "used_cpu_sys_children:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(c_ru.ru_stime.tv_sec) + static_cast<float>(c_ru.ru_stime.tv_usec) / 1000000
+             << static_cast<float>(c_ru.ru_stime.tv_sec) + (static_cast<float>(c_ru.ru_stime.tv_usec) / 1000000)
              << "\r\n";
   tmp_stream << "used_cpu_user_children:" << std::setiosflags(std::ios::fixed) << std::setprecision(2)
-             << static_cast<float>(c_ru.ru_utime.tv_sec) + static_cast<float>(c_ru.ru_utime.tv_usec) / 1000000
+             << static_cast<float>(c_ru.ru_utime.tv_sec) + (static_cast<float>(c_ru.ru_utime.tv_usec) / 1000000)
              << "\r\n";
   info.append(tmp_stream.str());
 }
@@ -524,7 +531,7 @@ void InfoCmd::InfoCommandStats(PClient* client, std::string& info) {
   tmp_stream.setf(std::ios::fixed);
   tmp_stream << "# Commandstats" << "\r\n";
   auto cmdstat_map = client->GetCommandStatMap();
-  for (auto iter : *cmdstat_map) {
+  for (const auto& iter : *cmdstat_map) {
     if (iter.second.cmd_count_ != 0) {
       tmp_stream << iter.first << ":" << FormatCommandStatLine(iter.second);
     }
@@ -596,7 +603,7 @@ bool SortCmd::DoInitial(PClient* client) {
     } else if (strcasecmp(client->argv_[i].data(), "limit") == 0 && leftargs >= 2) {
       if (kstd::String2int(client->argv_[i + 1], &offset_) == 0 ||
           kstd::String2int(client->argv_[i + 2], &count_) == 0) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameSort);
         return false;
       }
       i += 2;
@@ -613,7 +620,7 @@ bool SortCmd::DoInitial(PClient* client) {
       get_patterns_.push_back(client->argv_[i + 1]);
       i++;
     } else {
-      client->SetRes(CmdRes::kSyntaxErr);
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSort);
       return false;
     }
   }
@@ -729,6 +736,8 @@ void SortCmd::DoCmd(PClient* client) {
         STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->RPush(store_key_, ret_, &reply_num);
     if (s.ok()) {
       client->AppendInteger(reply_num);
+      client->SetKey(store_key_);
+      ServeAndUnblockConns(client);
     } else {
       client->SetRes(CmdRes::kErrOther, s.ToString());
     }
@@ -853,7 +862,7 @@ void CmdClientKill::DoCmd(PClient* client) {
     default:
       break;
   }
-  ret == true ? client->SetRes(CmdRes::kOK) : client->SetRes(CmdRes::kErrOther, "No such client");
+  ret ? client->SetRes(CmdRes::kOK) : client->SetRes(CmdRes::kErrOther, "No such client");
 }
 
 CmdClientList::CmdClientList(const std::string& name, int16_t arity)

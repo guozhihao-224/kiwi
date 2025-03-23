@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -8,6 +8,8 @@
  */
 
 #include "cmd_list.h"
+#include "base_cmd.h"
+#include "src/scope_record_lock.h"
 #include "std_string.h"
 #include "store.h"
 
@@ -27,10 +29,11 @@ void LPushCmd::DoCmd(PClient* client) {
       STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->LPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
+    ServeAndUnblockConns(client);
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "lpush cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameLPush);
   }
 }
 
@@ -60,10 +63,6 @@ RPoplpushCmd::RPoplpushCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
 bool RPoplpushCmd::DoInitial(PClient* client) {
-  if (((arity_ > 0 && client->argv_.size() != arity_) || (arity_ < 0 && client->argv_.size() < -arity_))) {
-    client->SetRes(CmdRes::kWrongNum, kCmdNameRPoplpush);
-    return false;
-  }
   source_ = client->argv_[1];
   receiver_ = client->argv_[2];
   return true;
@@ -75,6 +74,8 @@ void RPoplpushCmd::DoCmd(PClient* client) {
       STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->RPoplpush(source_, receiver_, &value);
   if (s.ok()) {
     client->AppendString(value);
+    client->SetKey(receiver_);
+    ServeAndUnblockConns(client);
   } else if (s.IsNotFound()) {
     client->AppendString("");
   } else if (s.IsInvalidArgument()) {
@@ -99,10 +100,11 @@ void RPushCmd::DoCmd(PClient* client) {
       STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->RPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
+    ServeAndUnblockConns(client);
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameRPush);
   }
 }
 
@@ -168,8 +170,61 @@ void RPopCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameRPop);
   }
+}
+
+BLPopCmd::BLPopCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool BLPopCmd::DoInitial(PClient* client) { return true; }
+
+void BLPopCmd::DoCmd(PClient* client) {}
+
+BRPopCmd::BRPopCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool BRPopCmd::DoInitial(PClient* client) {
+  std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end() - 1);
+  client->SetKey(keys);
+
+  int64_t timeout = 0;
+  if (!kstd::String2int(client->argv_.back(), &timeout)) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
+  if (timeout < 0) {
+    client->SetRes(CmdRes::kErrOther, "timeout can't be a negative value");
+    return false;
+  }
+  if (timeout > 0) {
+    auto now = std::chrono::system_clock::now();
+    expire_time_ =
+        std::chrono::time_point_cast<std::chrono::milliseconds>(now).time_since_epoch().count() + timeout * 1000;
+  }
+  return true;
+}
+
+void BRPopCmd::DoCmd(PClient* client) {
+  std::vector<std::string> elements;
+  std::vector<std::string> list_keys(client->Keys().begin(), client->Keys().end());
+  storage::MultiScopeRecordLock(STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->GetLockMgr(), list_keys);
+  for (auto& list_key : list_keys) {
+    storage::Status s =
+        STORE_INST.GetBackend(client->GetCurrentDB())->GetStorage()->RPopWithoutLock(list_key, 1, &elements);
+    if (s.ok()) {
+      client->AppendArrayLen(2);
+      client->AppendString(list_key);
+      client->AppendString(elements[0]);
+      return;
+    } else if (s.IsNotFound()) {
+      continue;
+    } else {
+      client->SetRes(CmdRes::kErrOther, s.ToString());
+      return;
+    }
+  }
+  BlockThisClientToWaitLRPush(list_keys, expire_time_, client->shared_from_this(), BlockedConnNode::Type::BRPop);
 }
 
 LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
@@ -194,7 +249,7 @@ void LRangeCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "lrange cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameLRange);
     }
     return;
   }
@@ -253,7 +308,7 @@ void LTrimCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameLTrim);
   }
 }
 
@@ -287,7 +342,7 @@ void LSetCmd::DoCmd(PClient* client) {
     } else if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameLSet);  // just a safeguard
     }
   } else {
     client->SetRes(CmdRes::kInvalidInt);
@@ -319,7 +374,7 @@ void LInsertCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "linsert cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameLInsert);
     }
     return;
   }

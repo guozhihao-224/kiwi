@@ -429,7 +429,7 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(client.Do(ctx, "pexpire", DefaultKey, "err").Err()).To(MatchError("ERR value is not an integer or out of range"))
 	})
 
-	PIt("should Rename", func() {
+	It("should Rename", func() {
 		client.Set(ctx, "mykey", "hello", 0)
 		client.Rename(ctx, "mykey", "mykey1")
 		client.Rename(ctx, "mykey1", "mykey2")
@@ -450,7 +450,7 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(client.TTL(ctx, "mykey2").Val()).To(Equal(-1 * time.Nanosecond))
 	})
 
-	PIt("should RenameNX", func() {
+	It("should RenameNX", func() {
 		client.Del(ctx, "mykey", "mykey1", "mykey2")
 		client.Set(ctx, "mykey", "hello", 0)
 		client.RenameNX(ctx, "mykey", "mykey1")

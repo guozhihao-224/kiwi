@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -280,8 +280,8 @@ class InfoCmd : public BaseCmd {
   void InfoData(std::string& info);
   void InfoCommandStats(PClient* client, std::string& info);
   std::string FormatCommandStatLine(const CommandStatistics& stats);
-  double MethodofTotalTimeCalculation(const uint64_t time_consuming);
-  double MethodofCommandStatistics(const uint64_t time_consuming, const uint64_t frequency);
+  double MethodofTotalTimeCalculation(uint64_t time_consuming);
+  double MethodofCommandStatistics(uint64_t time_consuming, uint64_t frequency);
 };
 
 class CmdDebug : public BaseCmdGroup {

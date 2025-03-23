@@ -1,4 +1,4 @@
-//  Copyright (c) 2017-present, Arana/Kiwi Community.  All rights reserved.
+//  Copyright (c) 2017-present, arana-db Community.  All rights reserved.
 //  This source code is licensed under the BSD-style license found in the
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
@@ -1078,9 +1078,8 @@ Status Redis::ZGetAll(const Slice& key, double weight, std::map<std::string, dou
       int32_t cur_index = 0;
       ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
       int32_t stop_index = parsed_zsets_meta_value.Count() - 1;
-      double score = 0.0;
       uint64_t version = parsed_zsets_meta_value.Version();
-      ZSetsScoreKey zsets_score_key(key.ToString(), version, std::numeric_limits<double>::lowest(), Slice());
+      ZSetsScoreKey zsets_score_key(key, version, std::numeric_limits<double>::lowest(), Slice());
       Slice seek_key = zsets_score_key.Encode();
       rocksdb::Iterator* iter = db_->NewIterator(read_options, handles_[kZsetsScoreCF]);
       for (iter->Seek(seek_key); iter->Valid() && cur_index <= stop_index; iter->Next(), ++cur_index) {

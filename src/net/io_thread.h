@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -32,10 +32,10 @@ class IOThread {
   void Wait();
 
   // Add read event to epoll when send message to client
-  void SetWriteEvent(uint64_t id, int fd) { baseEvent_->AddWriteEvent(id, fd); }
+  void SetWriteEvent(Connection *conn) { baseEvent_->AddWriteEvent(conn); }
 
   // Add new event to epoll when new connection
-  void AddNewEvent(uint64_t connId, int fd, int mask) { baseEvent_->AddEvent(connId, fd, mask); }
+  void AddNewEvent(Connection *conn, int mask) { baseEvent_->AddEvent(conn, mask); }
 
  protected:
   std::atomic<bool> running_ = true;

@@ -1,4 +1,4 @@
-// Copyright (c) 2024-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2024-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -22,7 +22,10 @@ namespace kiwi {
 DB::DB(int db_index, const std::string& db_path)
     : db_index_(db_index), db_path_(db_path + std::to_string(db_index_) + '/') {}
 
-DB::~DB() { INFO("DB{} is closing...", db_index_); }
+DB::~DB() {
+  storage_->Close();
+  INFO("DB{} is closing...", db_index_);
+}
 
 rocksdb::Status DB::Open() {
   storage::StorageOptions storage_options;

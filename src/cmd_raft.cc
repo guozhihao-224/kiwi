@@ -1,4 +1,4 @@
-// Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+// Copyright (c) 2023-present, arana-db Community.  All rights reserved.
 // This source code is licensed under the BSD-style license found in the
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory
@@ -108,7 +108,8 @@ void RaftNodeCmd::DoCmdRemove(PClient* client) {
     auto ret =
         RAFT_INST.GetClusterCmdCtx().Set(ClusterCmdType::kRemove, client, std::move(peer_ip), port, std::move(peer_id));
     if (!ret) {  // other clients have removed
-      return client->SetRes(CmdRes::kErrOther, "Other clients have removed");
+      client->SetRes(CmdRes::kErrOther, "Other clients have removed");
+      return;
     }
     RAFT_INST.GetClusterCmdCtx().ConnectTargetNode();
     INFO("Sent remove request to leader successfully");
@@ -150,7 +151,8 @@ bool RaftClusterCmd::DoInitial(PClient* client) {
 
 void RaftClusterCmd::DoCmd(PClient* client) {
   if (RAFT_INST.IsInitialized()) {
-    return client->SetRes(CmdRes::kErrOther, "Already cluster member");
+    client->SetRes(CmdRes::kErrOther, "Already cluster member");
+    return;
   }
 
   auto cmd = client->argv_[1];
@@ -164,22 +166,25 @@ void RaftClusterCmd::DoCmd(PClient* client) {
 
 void RaftClusterCmd::DoCmdInit(PClient* client) {
   if (client->argv_.size() != 2 && client->argv_.size() != 3) {
-    return client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    return;
   }
 
   std::string cluster_id;
   if (client->argv_.size() == 3) {
     cluster_id = client->argv_[2];
     if (cluster_id.size() != RAFT_GROUPID_LEN) {
-      return client->SetRes(CmdRes::kInvalidParameter,
-                            "Cluster id must be " + std::to_string(RAFT_GROUPID_LEN) + " characters");
+      client->SetRes(CmdRes::kInvalidParameter,
+                     "Cluster id must have " + std::to_string(RAFT_GROUPID_LEN) + " characters");
+      return;
     }
   } else {
     cluster_id = kstd::RandomHexChars(RAFT_GROUPID_LEN);
   }
   auto s = RAFT_INST.Init(cluster_id, false);
   if (!s.ok()) {
-    return client->SetRes(CmdRes::kErrOther, fmt::format("Failed to init node: ", s.error_str()));
+    client->SetRes(CmdRes::kErrOther, fmt::format("Failed to init node: ", s.error_str()));
+    return;
   }
   client->SetRes(CmdRes::kOK);
 }
@@ -198,35 +203,41 @@ static inline std::optional<std::pair<std::string, int32_t>> GetIpAndPortFromEnd
 void RaftClusterCmd::DoCmdJoin(PClient* client) {
   // If the node has been initialized, it needs to close the previous initialization and rejoin the other group
   if (RAFT_INST.IsInitialized()) {
-    return client->SetRes(CmdRes::kErrOther,
-                          "A node that has been added to a cluster must be removed \
+    client->SetRes(CmdRes::kErrOther,
+                   "A node that has been added to a cluster must be removed \
       from the old cluster before it can be added to the new cluster");
+    return;
   }
 
   if (client->argv_.size() < 3) {
-    return client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    return;
   }
 
-  // (KKorpse)TODO: Support multiple nodes join at the same time.
+  // (KKorpse) TODO: Support multiple nodes join at the same time.
   if (client->argv_.size() > 3) {
-    return client->SetRes(CmdRes::kInvalidParameter, "Too many arguments");
+    client->SetRes(CmdRes::kInvalidParameter, "Too many arguments");
+    return;
   }
 
   auto addr = client->argv_[2];
   if (braft::PeerId(addr).is_empty()) {
-    return client->SetRes(CmdRes::kErrOther, fmt::format("Invalid ip::port: {}", addr));
+    client->SetRes(CmdRes::kErrOther, fmt::format("Invalid ip::port: {}", addr));
+    return;
   }
 
   auto ip_port = GetIpAndPortFromEndPoint(addr);
   if (!ip_port.has_value()) {
-    return client->SetRes(CmdRes::kErrOther, fmt::format("Invalid ip::port: {}", addr));
+    client->SetRes(CmdRes::kErrOther, fmt::format("Invalid ip::port: {}", addr));
+    return;
   }
   auto& [peer_ip, port] = *ip_port;
 
   // Connect target
   auto ret = RAFT_INST.GetClusterCmdCtx().Set(ClusterCmdType::kJoin, client, std::move(peer_ip), port);
   if (!ret) {  // other clients have joined
-    return client->SetRes(CmdRes::kErrOther, "Other clients have joined");
+    client->SetRes(CmdRes::kErrOther, "Other clients have joined");
+    return;
   }
   RAFT_INST.GetClusterCmdCtx().ConnectTargetNode();
   INFO("Sent join request to leader successfully");

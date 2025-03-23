@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023-present, Arana/Kiwi Community.  All rights reserved.
+ * Copyright (c) 2023-present, arana-db Community.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -11,16 +11,16 @@
 
 namespace net {
 
-int StreamSocket::OnReadable(const std::shared_ptr<Connection> &conn, std::string *readBuff) { return Read(readBuff); }
+int StreamSocket::OnReadable(Connection *conn, std::string *readBuff) { return Read(readBuff); }
 
 // return bytes that have not yet been sent
-int StreamSocket::OnWritable(uint64_t id, int fd, BaseEvent *event) {
+int StreamSocket::OnWritable(Connection *conn, BaseEvent *event) {
   if (sendData_.empty()) {
     if (!writeQueue_.Pop(sendData_)) {  // no data to send
       std::lock_guard lock(write_mutex_);
       if (writeQueue_.Empty()) {  // double check
         writeReady_ = false;
-        event->DelWriteEvent(id, fd);
+        event->DelWriteEvent(conn);
       }
     }
     return NE_OK;
@@ -43,7 +43,7 @@ int StreamSocket::OnWritable(uint64_t id, int fd, BaseEvent *event) {
       std::lock_guard lock(write_mutex_);
       if (writeQueue_.Empty()) {  // double check
         writeReady_ = false;
-        event->DelWriteEvent(id, fd);
+        event->DelWriteEvent(conn);
       }
       return NE_OK;
     }
