@@ -9,15 +9,12 @@
 
 #include "base_cmd.h"
 
-#include "fmt/core.h"
-
 #include "raft/raft.h"
 
 #include "common.h"
 #include "config.h"
 #include "kiwi.h"
 #include "log.h"
-#include "raft/raft.h"
 
 namespace kiwi {
 
@@ -51,11 +48,11 @@ void BaseCmd::Execute(PClient* client) {
     if (!RAFT_INST.IsLeader()) {
       auto leader_addr = RAFT_INST.GetLeaderAddress();
       if (leader_addr.empty()) {
-        client->SetRes(CmdRes::kErrOther, std::string("-CLUSTERDOWN No Raft leader"));
+        client->SetRes(CmdRes::kErrClusterDown, "No raft leader");
         return;
       }
 
-      client->SetRes(CmdRes::kErrOther, fmt::format("-MOVED {}", leader_addr));
+      client->SetRes(CmdRes::kErrMoved, leader_addr);
       return;
     }
   }

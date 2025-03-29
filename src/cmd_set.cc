@@ -10,6 +10,7 @@
 #include "cmd_set.h"
 #include <memory>
 #include <utility>
+#include "base_cmd.h"
 #include "std/std_string.h"
 #include "store.h"
 
@@ -52,7 +53,7 @@ void SAddCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameSAdd);
   }
 }
 
@@ -77,7 +78,7 @@ void SUnionStoreCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kMultiKey);
       return;
     }
-    client->SetRes(CmdRes::kSyntaxErr, "sunionstore cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameSUnionStore);
   }
   client->AppendInteger(ret);
 }
@@ -172,7 +173,7 @@ void SInterStoreCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSInterStore);
     }
     return;
   }
@@ -193,7 +194,7 @@ void SCardCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSCard);
     }
     return;
   }
@@ -201,7 +202,7 @@ void SCardCmd::DoCmd(PClient* client) {
     client->AppendInteger(reply_Num);
     return;
   }
-  client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
+  client->SetRes(CmdRes::kSyntaxErr, kCmdNameSCard);
 }
 
 SMoveCmd::SMoveCmd(const std::string& name, int16_t arity)
@@ -261,7 +262,7 @@ void SRandMemberCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "srandmember cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSRandMember);
     }
     return;
   }
@@ -287,7 +288,7 @@ void SPopCmd::DoCmd(PClient* client) {
       if (s.IsInvalidArgument()) {
         client->SetRes(CmdRes::kMultiKey);
       } else {
-        client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameSPop);
       }
       return;
     }
@@ -306,7 +307,7 @@ void SPopCmd::DoCmd(PClient* client) {
       if (s.IsInvalidArgument()) {
         client->SetRes(CmdRes::kMultiKey);
       } else {
-        client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameSPop);
       }
       return;
     }
@@ -334,7 +335,7 @@ void SMembersCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "smembers cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSMembers);
     }
     return;
   }
@@ -357,7 +358,7 @@ void SDiffCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "sdiff cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSDiff);
     }
     return;
   }
@@ -383,7 +384,7 @@ void SDiffstoreCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "sdiffstore cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSDiffstore);
     }
     return;
   }
@@ -395,7 +396,7 @@ SScanCmd::SScanCmd(const std::string& name, int16_t arity)
 
 bool SScanCmd::DoInitial(PClient* client) {
   if (auto size = client->argv_.size(); size != 3 && size != 5 && size != 7) {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameSScan);
     return false;
   }
   client->SetKey(client->argv_[1]);

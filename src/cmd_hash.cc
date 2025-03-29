@@ -74,7 +74,7 @@ void HGetCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "hget cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameHGet);
   }
 }
 
@@ -419,7 +419,7 @@ void HSetNXCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameHSetNX);
   }
 }
 
@@ -476,12 +476,12 @@ void HRandFieldCmd::DoCmd(PClient* client) {
       return;
     }
     if (argv.size() > 4) {
-      client->SetRes(CmdRes::kSyntaxErr);
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameHRandField);
       return;
     }
     if (argv.size() > 3) {
       if (kWithValueString != kstd::StringToLower(argv[3])) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameHRandField);
         return;
       }
       with_values = true;

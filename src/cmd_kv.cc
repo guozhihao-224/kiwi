@@ -39,7 +39,7 @@ void GetCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "get key error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameGet);
   }
 }
 
@@ -66,7 +66,7 @@ bool SetCmd::DoInitial(PClient* client) {
       condition_ = (condition_ == SetCmd::kNONE) ? SetCmd::kEXORPX : condition_;
       index++;
       if (index == argv_.size()) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameSet);
         return false;
       }
       if (kstd::String2int(argv_[index].data(), argv_[index].size(), &sec_) == 0) {
@@ -78,7 +78,7 @@ bool SetCmd::DoInitial(PClient* client) {
         sec_ /= 1000;
       }
     } else {
-      client->SetRes(CmdRes::kSyntaxErr);
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSet);
       return false;
     }
     index++;
@@ -312,7 +312,7 @@ bool BitOpCmd::DoInitial(PClient* client) {
         kstd::StringEqualCaseInsensitive(client->argv_[1], "or") ||
         kstd::StringEqualCaseInsensitive(client->argv_[1], "not") ||
         kstd::StringEqualCaseInsensitive(client->argv_[1], "xor"))) {
-    client->SetRes(CmdRes::kSyntaxErr, "operation error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitOp);
     return false;
   }
   return true;
@@ -347,7 +347,7 @@ void BitOpCmd::DoCmd(PClient* client) {
   }
 
   if (err != kPErrorOK) {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitOp);
   } else {
     PString value;
     int64_t result_length = 0;

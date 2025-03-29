@@ -8,6 +8,7 @@
  */
 
 #include "cmd_list.h"
+#include "base_cmd.h"
 #include "src/scope_record_lock.h"
 #include "std_string.h"
 #include "store.h"
@@ -32,7 +33,7 @@ void LPushCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "lpush cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameLPush);
   }
 }
 
@@ -103,7 +104,7 @@ void RPushCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameRPush);
   }
 }
 
@@ -169,7 +170,7 @@ void RPopCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameRPop);
   }
 }
 
@@ -287,7 +288,7 @@ void LRangeCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "lrange cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameLRange);
     }
     return;
   }
@@ -346,7 +347,7 @@ void LTrimCmd::DoCmd(PClient* client) {
   } else if (s.IsInvalidArgument()) {
     client->SetRes(CmdRes::kMultiKey);
   } else {
-    client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameLTrim);
   }
 }
 
@@ -380,7 +381,7 @@ void LSetCmd::DoCmd(PClient* client) {
     } else if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameLSet);  // just a safeguard
     }
   } else {
     client->SetRes(CmdRes::kInvalidInt);
@@ -412,7 +413,7 @@ void LInsertCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "linsert cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameLInsert);
     }
     return;
   }

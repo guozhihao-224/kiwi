@@ -258,7 +258,7 @@ void HelloCmd::DoCmd(PClient* client) {
       }
       next_arg += 2;
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "Syntax error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameHello);
       return;
     }
   }
@@ -336,7 +336,7 @@ bool InfoCmd::DoInitial(PClient* client) {
       return false;
     }
   } else {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameInfo);
     return false;
   }
   return true;
@@ -603,7 +603,7 @@ bool SortCmd::DoInitial(PClient* client) {
     } else if (strcasecmp(client->argv_[i].data(), "limit") == 0 && leftargs >= 2) {
       if (kstd::String2int(client->argv_[i + 1], &offset_) == 0 ||
           kstd::String2int(client->argv_[i + 2], &count_) == 0) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameSort);
         return false;
       }
       i += 2;
@@ -620,7 +620,7 @@ bool SortCmd::DoInitial(PClient* client) {
       get_patterns_.push_back(client->argv_[i + 1]);
       i++;
     } else {
-      client->SetRes(CmdRes::kSyntaxErr);
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameSort);
       return false;
     }
   }

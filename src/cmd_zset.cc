@@ -11,6 +11,7 @@
 
 #include <memory>
 
+#include "base_cmd.h"
 #include "std/std_string.h"
 #include "store.h"
 
@@ -95,7 +96,7 @@ bool ZAddCmd::DoInitial(PClient* client) {
 void ZAddCmd::DoCmd(PClient* client) {
   size_t argc = client->argv_.size();
   if (argc % 2 == 1) {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameZAdd);
     return;
   }
   score_members_.clear();
@@ -221,7 +222,7 @@ bool ZsetUIstoreParentCmd::DoInitial(PClient* client) {
   }
   auto argc = argv_.size();
   if (argc < num_keys_ + 3) {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameZInterstore + "/" + kCmdNameZUnionstore);
     return false;
   }
   keys_.assign(argv_.begin() + 3, argv_.begin() + 3 + num_keys_);
@@ -231,7 +232,7 @@ bool ZsetUIstoreParentCmd::DoInitial(PClient* client) {
     if (strcasecmp(argv_[index].data(), "weights") == 0) {
       index++;
       if (argc < index + num_keys_) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameZInterstore + "/" + kCmdNameZUnionstore);
         return false;
       }
       double weight;
@@ -246,7 +247,7 @@ bool ZsetUIstoreParentCmd::DoInitial(PClient* client) {
     } else if (strcasecmp(argv_[index].data(), "aggregate") == 0) {
       index++;
       if (argc < index + 1) {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameZInterstore + "/" + kCmdNameZUnionstore);
         return false;
       }
       if (strcasecmp(argv_[index].data(), "sum") == 0) {
@@ -256,12 +257,12 @@ bool ZsetUIstoreParentCmd::DoInitial(PClient* client) {
       } else if (strcasecmp(argv_[index].data(), "max") == 0) {
         aggregate_ = storage::MAX;
       } else {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameZInterstore + "/" + kCmdNameZUnionstore);
         return false;
       }
       index++;
     } else {
-      client->SetRes(CmdRes::kSyntaxErr);
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameZInterstore + "/" + kCmdNameZUnionstore);
       return false;
     }
   }
@@ -322,7 +323,7 @@ void ZRevrangeCmd::DoCmd(PClient* client) {
   if (client->argv_.size() == 5 && (strcasecmp(client->argv_[4].data(), "withscores") == 0)) {
     is_ws = true;
   } else if (client->argv_.size() != 4) {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRevrange);
     return;
   }
   if (kstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start) == 0) {
@@ -386,7 +387,7 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
         with_scores = true;
       } else if (strcasecmp(client->argv_[index].data(), "limit") == 0) {
         if (index + 3 > argc) {
-          client->SetRes(CmdRes::kSyntaxErr);
+          client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRangebyscore);
           return;
         }
         index++;
@@ -400,7 +401,7 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
           return;
         }
       } else {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRangebyscore);
         return;
       }
       index++;
@@ -504,7 +505,7 @@ void ZRevrangebyscoreCmd::DoCmd(PClient* client) {
         with_scores = true;
       } else if (strcasecmp(client->argv_[index].data(), "limit") == 0) {
         if (index + 3 > argc) {
-          client->SetRes(CmdRes::kSyntaxErr);
+          client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRevrangebyscore);
           return;
         }
         index++;
@@ -518,7 +519,7 @@ void ZRevrangebyscoreCmd::DoCmd(PClient* client) {
           return;
         }
       } else {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRevrangebyscore);
         return;
       }
       index++;
@@ -579,7 +580,7 @@ void ZCardCmd::DoCmd(PClient* client) {
     if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kMultiKey);
     } else {
-      client->SetRes(CmdRes::kSyntaxErr, "ZCard cmd error");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameZCard);
     }
     return;
   }
@@ -618,7 +619,7 @@ void ZRangeCmd::DoCmd(PClient* client) {
         with_scores = true;
       } else if (strcasecmp(client->argv_[index].data(), "limit") == 0) {
         if (index + 3 > argc) {
-          client->SetRes(CmdRes::kSyntaxErr);
+          client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRange);
           return;
         }
         index++;
@@ -632,14 +633,14 @@ void ZRangeCmd::DoCmd(PClient* client) {
           return;
         }
       } else {
-        client->SetRes(CmdRes::kSyntaxErr);
+        client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRange);
         return;
       }
       index++;
     }
   }
   if (by_score && by_lex) {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRange);
     return;
   }
 
@@ -705,7 +706,7 @@ void ZRangeCmd::DoCmd(PClient* client) {
   size_t m_end = offset + count;
   if (by_lex) {
     if (with_scores) {
-      client->SetRes(CmdRes::kSyntaxErr, "by lex not support with scores");
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRange);
     } else {
       client->AppendArrayLen(count);
       for (; m_start < m_end; m_start++) {
@@ -784,7 +785,7 @@ void ZRangebylexCmd::DoCmd(PClient* client) {
     }
   } else if (argc == 4) {
   } else {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRangebylex);
     return;
   }
 
@@ -848,7 +849,7 @@ void ZRevrangebylexCmd::DoCmd(PClient* client) {
     }
   } else if (argc == 4) {
   } else {
-    client->SetRes(CmdRes::kSyntaxErr);
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameZRevrangebylex);
     return;
   }
 
