@@ -150,6 +150,7 @@ class PClient : public std::enable_shared_from_this<PClient> {
   void AppendString(const char* value, int64_t size) { resp_encode_->AppendString(value, size); }
   void SetLineString(const std::string& value) { resp_encode_->SetLineString(value); }
   void Reply(std::string& str) { resp_encode_->Reply(str); }
+  void ReplyNull() { AppendStringRaw("*-1\r\n"); }
   // reply
 
   // pubsub
