@@ -230,7 +230,7 @@ void HelloCmd::DoCmd(PClient* client) {
   size_t next_arg = 2;
 
   while (next_arg < argc) {
-    size_t more_args = argc - next_arg;
+    size_t more_args = argc - next_arg - 1;
     const std::string& arg = client->argv_[next_arg];
     // TODO(marsevilspirit): support auth acl
     // like: hello 2 auth username password
@@ -244,19 +244,16 @@ void HelloCmd::DoCmd(PClient* client) {
       }
       client->SetName(name);
       next_arg += 2;
-    } else if (strcasecmp(arg.data(), "AUTH") == 0 && more_args) {
-      authed_ = true;
-      if (client->GetAuth()) {
-        continue;
-      }
-      auto& input_password = client->argv_[next_arg + 1];
+    } else if (strcasecmp(arg.data(), "AUTH") == 0 && more_args >= 2) {
+      // auto& user_name = client->argv_[next_arg + 1];// ACL are not supported now, there is only one user
+      auto& input_password = client->argv_[next_arg + 2];
       if (input_password != g_config.password) {
         client->SetRes(CmdRes::kErrOther, "invalid password");
         return;
-      } else {
-        client->SetAuth();
       }
-      next_arg += 2;
+      authed_ = true;
+      client->SetAuth();
+      next_arg += 3;
     } else {
       client->SetRes(CmdRes::kSyntaxErr, kCmdNameHello);
       return;
