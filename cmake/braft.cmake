@@ -28,6 +28,8 @@ ExternalProject_Add(
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
         ${EXTERNAL_PROJECT_CXX_LINK_FLAGS}
+        # To be compatible with cmake 4.0
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
         -DCMAKE_CXX_FLAGS=${BRAFT_CXX_FLAGS}
         -DCMAKE_INSTALL_PREFIX=${LIB_INSTALL_PREFIX}
