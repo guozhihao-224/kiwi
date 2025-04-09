@@ -202,7 +202,7 @@ void KiwiDB::ScanEvictedBlockedConnsOfBlrpop() {
         conn_node = conns_list->erase(conn_node);
         CleanBlockedNodes(conn_ptr);
       } else if (conn_node->IsExpired()) {
-        conn_ptr->AppendString("");
+        conn_ptr->ReplyNull();
         conn_ptr->SendPacket();
         conn_node = conns_list->erase(conn_node);
         CleanBlockedNodes(conn_ptr);
