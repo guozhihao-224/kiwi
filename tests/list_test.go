@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -26,6 +27,7 @@ var _ = Describe("List", Ordered, func() {
 		ctx    = context.TODO()
 		s      *util.Server
 		client *redis.Client
+		clientBlock *redis.Client
 	)
 
 	s2s := map[string]string{
@@ -41,7 +43,6 @@ var _ = Describe("List", Ordered, func() {
 	// within the Ordered container.
 	BeforeAll(func() {
 		config := util.GetConfPath(false, 0)
-
 		s = util.StartServer(config, map[string]string{"port": strconv.Itoa(7777)}, true)
 		Expect(s).NotTo(Equal(nil))
 	})
@@ -62,9 +63,13 @@ var _ = Describe("List", Ordered, func() {
 	// shared variable.
 	BeforeEach(func() {
 		client = s.NewClient()
+		clientBlock = s.NewClient()
 		// TODO don't assert FlushDB's result, bug will fixed by issue #401
 		//Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
 		if res := client.FlushDB(ctx); res.Err() != nil {
+			fmt.Println("[List]FlushDB error: ", res.Err())
+		}
+		if res := clientBlock.FlushDB(ctx); res.Err() != nil {
 			fmt.Println("[List]FlushDB error: ", res.Err())
 		}
 		time.Sleep(1 * time.Second)
@@ -73,6 +78,11 @@ var _ = Describe("List", Ordered, func() {
 	// nodes that run after the spec's subject(It).
 	AfterEach(func() {
 		err := client.Close()
+		if err != nil {
+			log.Println("Close client conn fail.", err.Error())
+			return
+		}
+		err = clientBlock.Close()
 		if err != nil {
 			log.Println("Close client conn fail.", err.Error())
 			return
@@ -345,5 +355,127 @@ var _ = Describe("List", Ordered, func() {
 
 		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("Cmd BLPOP/BRPOP single existing list", func() {
+		// now blist : d, c, large, b, a
+        Expect(client.LPush(ctx, "blist", "a", "b", "large", "c", "d").Err()).NotTo(HaveOccurred())
+		
+        brpop := client.BRPop(ctx, 0, "blist")
+        Expect(brpop.Err()).NotTo(HaveOccurred())
+        Expect(brpop.Val()).To(Equal([]string{"blist", "a"}))
+        
+        Expect(client.Del(ctx, "blist").Err()).NotTo(HaveOccurred())
+    })
+
+	It("Cmd BLPOP/BRPOP unblock by timeout/LPUSH/RPUSH/RPopLPUSH", func() {
+		var wg sync.WaitGroup 
+		
+		// BRPOP unlock by timeout 
+		wg.Add(1)
+		brpop, e := clientBlock.BRPop(ctx, 1 * time.Second, "blist").Result()
+		Expect(e).To(SatisfyAny(
+			BeNil(),
+			MatchError(redis.Nil),
+		))
+		Expect(brpop).To(BeEmpty())
+		wg.Done()
+	
+		// BRPOP unlock by LPUSH
+		wg.Add(1)
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			brpop := clientBlock.BRPop(ctx, 0 * time.Second, "blist-1")
+			Expect(brpop.Err()).NotTo(HaveOccurred())
+			Expect(brpop.Val()).To(Equal([]string{"blist-1", "foo"}))
+		}()
+		time.Sleep(200 * time.Millisecond)
+		Expect(client.LPush(ctx, "blist-1", "foo").Val()).To(Equal(int64(1)))
+		wg.Wait()
+
+		// BRPOP unlock by RPUSH
+		wg.Add(1)
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			brpop := clientBlock.BRPop(ctx, 0 * time.Second, "blist-2")
+			Expect(brpop.Err()).NotTo(HaveOccurred())
+			Expect(brpop.Val()).To(Equal([]string{"blist-2", "bar"}))
+		}()
+		time.Sleep(200 * time.Millisecond)
+		Expect(client.RPush(ctx, "blist-2", "bar").Val()).To(Equal(int64(1)))
+		wg.Wait()
+
+		// BRPOP unlock by RPopLPush 
+		wg.Add(1)
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			brpop := clientBlock.BRPop(ctx, 0 * time.Second, "blist-3")
+			Expect(brpop.Err()).NotTo(HaveOccurred())
+			Expect(brpop.Val()).To(Equal([]string{"blist-3", "car"}))
+		}()
+		time.Sleep(200 * time.Millisecond)
+		Expect(client.LPush(ctx, "blist-1", "car").Err()).NotTo(HaveOccurred())
+		Expect(client.RPopLPush(ctx, "blist-1", "blist-3").Err()).NotTo(HaveOccurred())
+        wg.Wait()
+
+        Expect(client.Del(ctx, "blist-1", "blist-2", "blist-3").Err()).NotTo(HaveOccurred())
+	})
+
+	// Select from left to right
+	It("Cmd BLPOP/BRPOP multiple lists", func() {
+		Expect(client.RPush(ctx, "blist-1", "a").Err()).NotTo(HaveOccurred())
+        Expect(client.RPush(ctx, "blist-2", "b").Err()).NotTo(HaveOccurred())
+
+		brpop := clientBlock.BRPop(ctx, 0 * time.Second, "blist-1", "blist-2", "blist-2", "blist-1")
+		Expect(brpop.Err()).NotTo(HaveOccurred())
+		Expect(brpop.Val()).To(Equal([]string{"blist-1", "a"}))
+
+		brpop = clientBlock.BRPop(ctx, 0 * time.Second, "blist-1", "blist-2", "blist-2", "blist-1")
+		Expect(brpop.Err()).NotTo(HaveOccurred())
+		Expect(brpop.Val()).To(Equal([]string{"blist-2", "b"}))
+
+		Expect(client.Del(ctx, "blist-1", "blist-2").Err()).NotTo(HaveOccurred())
+	})
+
+	// First Blocked First Served
+	It("Cmd BLPOP/BRPOP serve priority", func() {
+		var wg sync.WaitGroup
+		results := make([][]string, 2)
+		for i := range results {
+			results[i] = make([]string, 2)
+		}
+
+		wg.Add(2)
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			c := s.NewClient()
+			defer c.Close()
+
+			brpop := c.BRPop(ctx, 0 * time.Second, "blist-1")
+			Expect(brpop.Err()).NotTo(HaveOccurred())
+			results[0] = brpop.Val()
+		}()
+		time.Sleep(1 * time.Second)
+		go func() {
+			defer GinkgoRecover()
+			defer wg.Done()
+			c := s.NewClient()
+			defer c.Close()
+
+			brpop := c.BRPop(ctx, 0 * time.Second, "blist-1")
+			Expect(brpop.Err()).NotTo(HaveOccurred())
+			results[1] = brpop.Val()
+		}()
+		time.Sleep(1 * time.Second)
+
+		Expect(client.RPush(ctx, "blist-1", "v1", "v2").Err()).NotTo(HaveOccurred())
+        wg.Wait()
+
+		Expect(results[0]).To(Equal([]string{"blist-1", "v2"}))
+        Expect(results[1]).To(Equal([]string{"blist-1", "v1"}))
 	})
 })
