@@ -29,11 +29,26 @@ class Options : public net::NetOptions {
 
   bool GetRedisCompatibleMode() const { return redis_compatible_mode; }
 
+  void SetIps(const std::vector<PString>& ips) { ips_ = ips; }
+
+  const std::vector<PString>& GetIps() const { return ips_; }
+
+  void SetUseRaft(const PString& use) { use_raft = use; }
+
+  const PString& GetUseRaft() const { return use_raft; }
+
+  void SetRaftIp(const PString& ip) { raft_ip = ip; }
+
+  const PString& GetRaftIp() const { return raft_ip; }
+
  private:
   PString cfg_file_;
   PString log_level_;
 
   std::atomic<bool> redis_compatible_mode = false;
+  std::vector<PString> ips_;
+  PString use_raft;
+  PString raft_ip;
 };
 
 }  // namespace kiwi
