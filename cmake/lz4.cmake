@@ -17,6 +17,7 @@ ExternalProject_Add(
         DOWNLOAD_NO_PROGRESS 1
         ${EXTERNAL_PROJECT_LOG_ARGS}
         SOURCE_SUBDIR build/cmake
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
@@ -32,6 +33,5 @@ ExternalProject_Add(
         -DBUILD_SHARED_LIBS=OFF
         ${EXTERNAL_GENERATOR}
         BUILD_COMMAND ${EXTERNAL_BUILD} -j${CPU_CORE}
-        UPDATE_COMMAND ""
         BUILD_BYPRODUCTS ${LZ4_LIBRARIES}
 )

@@ -12,8 +12,9 @@ ExternalProject_Add(
         ${EXTERNAL_PROJECT_LOG_ARGS}
         GIT_REPOSITORY "https://github.com/google/snappy.git"
         GIT_TAG "1.2.1"
-        GIT_SHALLOW true
         SOURCE_DIR ${Snappy_SOURCES_DIR}
+        GIT_SHALLOW true
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}

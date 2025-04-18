@@ -14,6 +14,8 @@ ExternalProject_Add(
         GIT_TAG         "v1.2.8"
         GIT_SHALLOW     true
         SOURCE_DIR      ${ZLIB_SOURCES_DIR}
+        GIT_SHALLOW true
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
@@ -27,6 +29,5 @@ ExternalProject_Add(
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         ${EXTERNAL_GENERATOR}
         BUILD_COMMAND ${EXTERNAL_BUILD} -j${CPU_CORE}
-        UPDATE_COMMAND ""
         BUILD_BYPRODUCTS ${ZLIB_LIBRARIES}
 )

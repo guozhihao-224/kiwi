@@ -22,6 +22,7 @@ ExternalProject_Add(
         DOWNLOAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/download"
         DOWNLOAD_NAME "gflags-2.2.2.zip"
         SOURCE_DIR ${GFLAGS_SOURCES_DIR}
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_GENERATOR}
         ${EXTERNAL_PROJECT_C}
@@ -41,6 +42,5 @@ ExternalProject_Add(
         -DGFLAGS_BUILD_TESTING=OFF
         -DCMAKE_INSTALL_PREFIX=${LIB_INSTALL_PREFIX}
         BUILD_COMMAND ${EXTERNAL_BUILD} -j${CPU_CORE}
-        UPDATE_COMMAND ""
         BUILD_BYPRODUCTS ${GFLAGS_LIBRARY}
 )

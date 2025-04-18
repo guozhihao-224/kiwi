@@ -13,8 +13,9 @@ ExternalProject_Add(
         DEPENDS gflags snappy zlib lz4 zstd
         GIT_REPOSITORY https://github.com/facebook/rocksdb.git
         GIT_TAG v9.11.1
-        GIT_SHALLOW true
         SOURCE_DIR ${ROCKSDB_SOURCES_DIR}
+        GIT_SHALLOW true
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
@@ -43,6 +44,5 @@ ExternalProject_Add(
         -DUSE_RTTI=ON
         ${EXTERNAL_GENERATOR}
         BUILD_COMMAND ${EXTERNAL_BUILD} -j${CPU_CORE}
-        UPDATE_COMMAND ""
         BUILD_BYPRODUCTS ${ROCKSDB_LIBRARIES}
 )

@@ -17,6 +17,7 @@ ExternalProject_Add(
         SOURCE_DIR ${zstd_SOURCES_DIR}
         DOWNLOAD_NO_PROGRESS 1
         SOURCE_SUBDIR build/cmake
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
@@ -32,6 +33,5 @@ ExternalProject_Add(
         -DZSTD_BUILD_SHARED=OFF
         ${EXTERNAL_GENERATOR}
         BUILD_COMMAND ${EXTERNAL_BUILD} -j${CPU_CORE}
-        UPDATE_COMMAND ""
         BUILD_BYPRODUCTS ${zstd_LIBRARIES}
 )

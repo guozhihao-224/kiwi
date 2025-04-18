@@ -22,6 +22,7 @@ ExternalProject_Add(
         DOWNLOAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/download"
         DOWNLOAD_NAME "fmt-10.1.1.zip"
         SOURCE_DIR ${FMT_SOURCES_DIR}
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
@@ -38,5 +39,4 @@ ExternalProject_Add(
         ${EXTERNAL_GENERATOR}
         BUILD_BYPRODUCTS ${FMT_LIBRARIES}
         BUILD_COMMAND ${EXTERNAL_BUILD} -j${CPU_CORE}
-        UPDATE_COMMAND ""
 )

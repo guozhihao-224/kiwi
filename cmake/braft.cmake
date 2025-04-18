@@ -24,6 +24,8 @@ ExternalProject_Add(
         GIT_TAG v1.1.2-beta20250101
         GIT_SHALLOW true
         SOURCE_DIR ${BRAFT_SOURCES_DIR}
+        GIT_SHALLOW true
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}

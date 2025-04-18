@@ -47,6 +47,13 @@ ELSE ()
     MESSAGE(STATUS "found clang-apply-replacements at ${CLANG_APPLY_REPLACEMENTS_BIN}")
 ENDIF ()
 
+# Configure CCache if available
+find_program(CCACHE_FOUND ccache)
+if(CCACHE_FOUND)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
+endif(CCACHE_FOUND)
+
 OPTION(WITH_COMMAND_DOCS "build with command docs support" OFF)
 IF (WITH_COMMAND_DOCS)
     ADD_DEFINITIONS(-DWITH_COMMAND_DOCS)
