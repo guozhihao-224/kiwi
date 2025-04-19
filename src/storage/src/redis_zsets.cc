@@ -167,11 +167,11 @@ Status Redis::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_membe
   uint32_t statistic = 0;
   std::unordered_map<std::string, double> ms_map;
   std::vector<ScoreMember> filtered_score_members;
-  for (const auto& sm : score_members) {
-    ms_map[sm.member] = sm.score;
-  }
-  for (auto& [member, score] : ms_map) {
-    filtered_score_members.emplace_back(score, std::move(member));
+  for (auto it = score_members.rbegin(); it != score_members.rend(); ++it) {
+    auto& sm = *it;
+    if (ms_map.emplace(sm.member, sm.score).second) {
+      filtered_score_members.emplace_back(sm.score, sm.member);
+    }
   }
 
   char score_buf[8];
