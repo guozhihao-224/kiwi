@@ -18,11 +18,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
 #include <iostream>
 
 #include "client.h"
 #include "client_map.h"
 #include "config.h"
+#include "gflags/gflags.h"
 #include "helper.h"
 #include "kiwi.h"
 #include "kiwi_logo.h"
@@ -67,20 +69,30 @@ static void Usage() {
   std::cerr << "kiwi is the kiwi server.\n";
   std::cerr << "\n";
   std::cerr << "Usage:\n";
-  std::cerr << "  kiwi [/path/to/kiwi.conf] [options]\n";
+  std::cerr << "  kiwi [--config] [/path/to/kiwi.conf] [options]\n";
   std::cerr << "\n";
   std::cerr << "Options:\n";
-  std::cerr << "  -v, --version                   output version information, then exit\n";
-  std::cerr << "  -h, --help                      output help message\n";
-  std::cerr << "  -p PORT, --port PORT            Set the port listen on\n";
-  std::cerr << "  -l LEVEL, --loglevel LEVEL      Set the log level\n";
-  std::cerr << "  -s ADDRESS, --slaveof ADDRESS   Set the slave address\n";
+  std::cerr << "  -v, --Version                   output version information, then exit\n";
+  std::cerr << "  -h, --usage                     output help message\n";
+  std::cerr << "  -p PORT, --port PORT            Set the port to listen on\n";
+  std::cerr << "  -l LEVEL, --loglevel LEVEL      Set the log level (e.g., debug, verbose, notice, warning)\n";
+  std::cerr << "  -s ADDRESS, --slaveof ADDRESS   Set the slave address (e.g., 127.0.0.1:6380)\n";
   std::cerr << "  -c, --redis-compatible-mode     Enable Redis compatibility mode\n";
+  std::cerr << "  --use-raft                      Whether to use Raft [yes or no]\n";
+  std::cerr << "  --raft-ip                       Raft IP address\n";
+  std::cerr << "  --ips                           List of IP addresses [x.x.x.x ::x::x::x::x ...]\n";
+  std::cerr << "  --config                        Path to the configuration file\n";
   std::cerr << "Examples:\n";
-  std::cerr << "  kiwi /path/kiwi.conf\n";
-  std::cerr << "  kiwi /path/kiwi.conf --loglevel verbose\n";
+  std::cerr << "  kiwi --usage\n";
+  std::cerr << "  kiwi --Version\n";
+  std::cerr << "  kiwi [--config] /path/kiwi.conf\n";
+  std::cerr << "  kiwi [--config] /path/kiwi.conf\n";
+  std::cerr << "  kiwi [--config] /path/kiwi.conf --loglevel verbose\n";
   std::cerr << "  kiwi --port 7777\n";
   std::cerr << "  kiwi --port 7777 --slaveof 127.0.0.1:8888\n";
+  std::cerr << "  kiwi [--config] /path/kiwi.conf --use_raft [yes or no]\n";
+  std::cerr << "  kiwi [--config] /path/kiwi.conf --ips [x.x.x.x ::x::x::x::x ...]\n";
+  std::cerr << "  kiwi [--config] /path/kiwi.conf --raft_ip x.x.x.x\n";
 }
 
 static void version() {
@@ -90,94 +102,138 @@ static void version() {
   std::cerr << "kiwi Server Build GIT SHA: " << KIWI_GIT_COMMIT_ID << '\n';
 }
 
-// Handle the argc & argv
+DEFINE_string(config, "", "Path to the configuration file");
+DEFINE_string(use_raft, "", "Whether to use Raft [yes or no]");
+DEFINE_string(ips, "", "List of IP addresses [x.x.x.x ::x::x::x::x ...]");
+DEFINE_string(raft_ip, "", "Raft IP address");
+DEFINE_uint32(port, 0, "Port number");
+DEFINE_string(loglevel, "", "Log level");
+DEFINE_bool(redis_compatible_mode, false, "Enable Redis compatible mode");
+DEFINE_string(slaveof, "", "Set as a slave of another instance");
+DEFINE_bool(usage, false, "Show usage information");
+DEFINE_bool(Version, false, "Show version information");
+
+static inline std::vector<std::string> SplitIPs(const std::string& ips, const std::string& sep) {
+  std::vector<std::string> ipList;
+  size_t start = 0;
+  size_t end = ips.find(sep);
+  while (end != std::string::npos) {
+    ipList.push_back(ips.substr(start, end - start));
+    start = end + sep.size();
+    end = ips.find(sep, start);
+  }
+  ipList.emplace_back(ips.substr(start, end));
+  return ipList;
+}
+
+static inline void PrintParsedFlags() {
+  std::cout << "Parsed command-line flags:\n";
+  std::cout << "  --config: " << FLAGS_config << "\n";
+  std::cout << "  --use-raft: " << FLAGS_use_raft << "\n";
+  std::cout << "  --ips: " << FLAGS_ips << "\n";
+  std::cout << "  --raft-ip: " << FLAGS_raft_ip << "\n";
+  std::cout << "  --port: " << FLAGS_port << "\n";
+  std::cout << "  --loglevel: " << FLAGS_loglevel << "\n";
+  std::cout << "  --redis-compatible-mode: " << (FLAGS_redis_compatible_mode ? "true" : "false") << "\n";
+  std::cout << "  --slaveof: " << FLAGS_slaveof << "\n";
+  std::cout << "  --usage: " << (FLAGS_usage ? "true" : "false") << "\n";
+  std::cout << "  --Version: " << (FLAGS_Version ? "true" : "false") << "\n";
+}
+
 bool KiwiDB::ParseArgs(int argc, char* argv[]) {
-  static struct option long_options[] = {
-      {.name = "version", .has_arg = no_argument, .flag = nullptr, .val = 'v'},
-      {.name = "help", .has_arg = no_argument, .flag = nullptr, .val = 'h'},
-      {.name = "port", .has_arg = required_argument, .flag = nullptr, .val = 'p'},
-      {.name = "loglevel", .has_arg = required_argument, .flag = nullptr, .val = 'l'},
-      {.name = "slaveof", .has_arg = required_argument, .flag = nullptr, .val = 's'},
-      {.name = "redis-compatible-mode", .has_arg = no_argument, .flag = nullptr, .val = 'c'},
-  };
-  // kiwi [/path/to/kiwi.conf] [options]
-  if (argv == nullptr) {
+  PString conf_file;
+  if (argc > 1 && !std::string(argv[1]).starts_with('-')) {
+    conf_file = argv[1];
+
+    for (int i = 1; i < argc; ++i) {
+      argv[i] = argv[i + 1];
+    }
+    argc--;
+  }
+
+  gflags::ParseCommandLineNonHelpFlags(&argc, &argv, true);
+
+  if (FLAGS_usage) {
     return false;
   }
-  if (options_.GetConfigName().empty() && argc > 1 && argv[1] != nullptr) {
-    struct stat st {};
-    if (stat(argv[1], &st) == 0 && S_ISREG(st.st_mode) && ::access(argv[1], R_OK) == 0) {
-      options_.SetConfigName(argv[1]);
-      std::cerr << "Configuration file path: [" << argv[1] << "]\n";
-      argc = argc - 1;
-      argv = argv + 1;
+
+  if (FLAGS_Version) {
+    version();
+    exit(EXIT_SUCCESS);
+  }
+
+  // Overwrite the config
+  if (!FLAGS_config.empty()) {
+    conf_file = FLAGS_config;
+  }
+
+  if (!conf_file.empty()) {
+    namespace fs = std::filesystem;
+    std::filesystem::path config_path(conf_file);
+    if (fs::is_regular_file(config_path) &&
+        (fs::status(config_path).permissions() & fs::perms::owner_read) != fs::perms::none) {
+      options_.SetConfigName(conf_file);
+      std::cerr << "Configuration file path: [" << conf_file << "]\n";
     } else {
-      std::cerr << "Configuration file [" << argv[1] << "]: " << strerror(errno) << "\n";
+      std::cerr << "Configuration file [" << conf_file << "]: " << strerror(errno) << "\n";
       return false;
     }
   } else {
     WarnDefaultConfig();
   }
-  while (true) {
-    int this_option_optind = optind ? optind : 1;
-    int option_index = 0;
-    int c;
-    c = getopt_long(argc, argv, "vhp:l:s:c", long_options, &option_index);
-    if (c == -1) {
-      break;
-    }
 
-    switch (c) {
-      case 'v': {
-        version();
-        std::exit(0);
-        break;
-      }
-      case 'h': {
-        Usage();
-        std::exit(0);
-        break;
-      }
-      case 'p': {
-        port_ = static_cast<uint16_t>(std::atoi(optarg));
-        break;
-      }
-      case 'l': {
-        options_.SetLogLevel(std::string(optarg));
-        break;
-      }
-      case 's': {
-        auto optarg_long = static_cast<unsigned int>(strlen(optarg));
-        char* str = static_cast<char*>(calloc(optarg_long, sizeof(char)));
-        if (str) {
-          if (sscanf(optarg, "%s:%hu", str, &master_port_) != 2) {
-            ERROR("Invalid slaveof format.");
-            free(str);
-            return false;
-          }
-          master_ = str;
-          free(str);
-        } else {
-          ERROR("Memory alloc failed.");
-        }
-        break;
-      }
-      case 'c': {
-        options_.SetRedisCompatibleMode(true);
-        break;
-      }
-      case '?': {
-        std::cerr << "Unknow option \n";
-        return false;
-        break;
-      }
-      default: {
-        std::cerr << "Unknow option \n";
-        return false;
-        break;
-      }
+  if (FLAGS_port > 0) {
+    if (FLAGS_port <= 1234) {
+      std::cerr << "You should have root privileges but now NOT support."
+                << "\n";
+      return false;
     }
+    port_ = static_cast<uint16_t>(FLAGS_port);
   }
+
+  if (!FLAGS_loglevel.empty()) {
+    if (FLAGS_loglevel != "debug" && FLAGS_loglevel != "verbose" && FLAGS_loglevel != "notice" &&
+        FLAGS_loglevel != "warning") {
+      std::cerr << "You must be choose one of [debug, verbose, notice, warning]."
+                << "\n";
+      return false;
+    }
+    options_.SetLogLevel(FLAGS_loglevel);
+  }
+
+  if (!FLAGS_slaveof.empty()) {
+    char str[256];
+    if (sscanf(FLAGS_slaveof.c_str(), "%[^:]:%hu", str, &master_port_) != 2) {
+      std::cerr << "Invalid slaveof format.\n";
+      return false;
+    }
+    master_ = str;
+  }
+
+  if (FLAGS_redis_compatible_mode) {
+    options_.SetRedisCompatibleMode(FLAGS_redis_compatible_mode);
+  }
+
+  if (!FLAGS_use_raft.empty()) {
+    std::transform(FLAGS_use_raft.cbegin(), FLAGS_use_raft.cend(), FLAGS_use_raft.begin(),
+                   [](unsigned char c) { return std::tolower(c); });
+    if (FLAGS_use_raft != "yes" && FLAGS_use_raft != "no") {
+      std::cerr << "You should decide use-raft = yes or no"
+                << "\n";
+      return false;
+    }
+    options_.SetUseRaft(FLAGS_use_raft);
+  }
+
+  if (!FLAGS_raft_ip.empty()) {
+    options_.SetRaftIp(FLAGS_raft_ip);
+  }
+
+  if (!FLAGS_ips.empty()) {
+    auto ips = SplitIPs(FLAGS_ips, " ");
+    options_.SetIps(ips);
+  }
+
   return true;
 }
 
@@ -257,6 +313,14 @@ bool KiwiDB::Init() {
     g_config.Set("redis_compatible_mode", std::to_string(options_.GetRedisCompatibleMode()), true);
   }
 
+  if (!options_.GetUseRaft().empty()) {
+    g_config.Set("use-raft", options_.GetUseRaft(), true);
+  }
+
+  if (!options_.GetRaftIp().empty()) {
+    g_config.Set("raft-ip", options_.GetRaftIp(), true);
+  }
+
   auto num = g_config.worker_threads_num + g_config.slave_threads_num;
   options_.SetThreadNum(num);
 
@@ -285,6 +349,10 @@ bool KiwiDB::Init() {
   options_.SetRwSeparation(true);
 
   event_server_ = std::make_unique<net::EventServer<std::shared_ptr<PClient>>>(options_);
+
+  if (!options_.GetIps().empty()) {
+    g_config.ips = options_.GetIps();
+  }
 
   for (const auto& ip : g_config.ips) {
     net::SocketAddr addr(ip, g_config.port);
@@ -413,6 +481,9 @@ int main(int argc, char* argv[]) {
     Usage();
     return -1;
   }
+#if BUILD_DEBUG
+  PrintParsedFlags();
+#endif  //! BUILD_DEBUG
 
   if (!g_kiwi->GetConfigName().empty()) {
     if (!g_config.LoadFromFile(g_kiwi->GetConfigName())) {

@@ -50,7 +50,7 @@ IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 ENDIF ()
 
 SET(LIBRARY_OUTPUT_PATH ${PLIB_INSTALL_DIR})
-ADD_DEPENDENCIES(raft protobuf raft_pb binlog_pb)
+ADD_DEPENDENCIES(raft protobuf raft_pb binlog_pb braft brpc)
 TARGET_LINK_LIBRARIES(raft
        PRIVATE net;
        PRIVATE dl;

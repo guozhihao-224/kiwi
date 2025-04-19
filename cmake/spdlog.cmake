@@ -25,6 +25,7 @@ ExternalProject_Add(
         DOWNLOAD_NAME "spdlog-1.12.0.zip"
         SOURCE_DIR ${SPDLOG_SOURCES_DIR}
         DOWNLOAD_NO_PROGRESS 1
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}

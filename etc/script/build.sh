@@ -10,6 +10,7 @@ K_VERSION="1.0.0"
 BUILD_TYPE="Release"
 VERBOSE=0
 CMAKE_FLAGS=""
+CMAKE_BUILD_FLAGS=""
 MAKE_FLAGS=""
 PREFIX="cmake-build"
 
@@ -55,6 +56,7 @@ function build() {
     echo "COMMIT_ID: $SHORT_COMMIT_ID"
     echo "BUILD_TYPE: $BUILD_TYPE"
     echo "CMAKE_FLAGS: $CMAKE_FLAGS"
+    echo "CMAKE_BUILD_FLAGS: $CMAKE_BUILD_FLAGS"
     echo "MAKE_FLAGS: $MAKE_FLAGS"
 
     if [ "${BUILD_TYPE}" == "Release" ]; then
@@ -74,7 +76,7 @@ function build() {
           -DKIWI_BUILD_DATE="$BUILD_TIME" \
           -DKIWI_GIT_COMMIT_ID="$SHORT_COMMIT_ID" \
           ${CMAKE_FLAGS} -S . -B ${PREFIX}
-    cmake --build ${PREFIX} -- ${MAKE_FLAGS} -j ${CPU_CORE}
+    cmake --build ${PREFIX} ${CMAKE_BUILD_FLAGS} -- ${MAKE_FLAGS} -j ${CPU_CORE}
 
     if [ $? -eq 0 ]; then
         echo -e "kiwi compile complete, output file ${C_GREEN} ./bin/kiwi ${C_END}"
@@ -104,6 +106,7 @@ function show_help() {
   sh $0 --gitinfo   get git info
   sh $0 --debug     compile with debug
   sh $0 --clang     use clang compiler
+  sh $0 --ninja     use ninja compiler
   sh $0 --kiwi      only compile kiwi
   sh $0 --clear     clear compilation directory
   sh $0 -h|--help   show help
@@ -136,6 +139,10 @@ while true; do
     CMAKE_FLAGS="${CMAKE_FLAGS} -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++"
     ;;
 
+  --ninja)
+    CMAKE_FLAGS="${CMAKE_FLAGS} -G Ninja"
+    ;;
+
   --kiwi)
     MAKE_FLAGS="${MAKE_FLAGS} kiwi"
     ;;
@@ -155,7 +162,7 @@ while true; do
 
   --verbose)
     CMAKE_FLAGS="${CMAKE_FLAGS} -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON"
-    MAKE_FLAGS="${MAKE_FLAGS} VERBOSE=1"
+    CMAKE_BUILD_FLAGS="${CMAKE_BUILD_FLAGS} --verbose"
     ;;
 
   --)

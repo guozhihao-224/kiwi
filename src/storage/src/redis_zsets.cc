@@ -1589,16 +1589,46 @@ Status Redis::ZsetsRename(const Slice& key, Redis* new_inst, const Slice& newkey
     return Status::NotFound();
   }
   // copy a new zset with newkey
-  statistic = parsed_zsets_meta_value.Count();
-  s = new_inst->GetDB()->Put(default_write_options_, handles_[kMetaCF], base_meta_newkey.Encode(), meta_value);
-  new_inst->UpdateSpecificKeyStatistics(DataType::kZSets, newkey.ToString(), statistic);
+  auto batch = Batch::CreateBatch(this);
+  uint64_t version = parsed_zsets_meta_value.Version();
+  std::vector<ScoreMember> score_members;
+  ScoreMember score_member;
 
-  // ZsetsDel key
-  parsed_zsets_meta_value.InitialMetaValue();
-  s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
-  UpdateSpecificKeyStatistics(DataType::kZSets, key.ToString(), statistic);
+  ZSetsScoreKey zsets_score_key(key, version, std::numeric_limits<double>::lowest(), Slice());
+  KeyStatisticsDurationGuard guard(this, DataType::kZSets, key.ToString());
+  rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kZsetsScoreCF]);
+  for (iter->Seek(zsets_score_key.Encode()); iter->Valid(); iter->Next()) {
+    ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
+    score_member.score = parsed_zsets_score_key.score();
+    score_member.member = parsed_zsets_score_key.member().ToString();
+    score_members.push_back(score_member);
+  }
+  delete iter;
 
-  return s;
+  batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
+
+  char score_buf[8];
+  for (const auto& member : score_members) {
+    ZSetsMemberKey new_zsets_member_key(newkey, version, member.member);
+    const void* ptr_score = reinterpret_cast<const void*>(&member.score);
+    EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
+    BaseDataValue new_zsets_member_i_val(Slice(score_buf, sizeof(uint64_t)));
+    batch->Put(kZsetsDataCF, new_zsets_member_key.Encode(), new_zsets_member_i_val.Encode());
+
+    ZSetsScoreKey new_zsets_score_key(newkey, version, member.score, member.member);
+    BaseDataValue new_zsets_score_i_val(Slice{});
+    batch->Put(kZsetsScoreCF, new_zsets_score_key.Encode(), new_zsets_score_i_val.Encode());
+
+    ZSetsMemberKey zsets_member_key(key, version, member.member);
+    batch->Delete(kZsetsDataCF, zsets_member_key.Encode());
+
+    ZSetsScoreKey zsets_score_key(key, version, member.score, member.member);
+    batch->Delete(kZsetsScoreCF, zsets_score_key.Encode());
+  }
+
+  batch->Delete(kMetaCF, base_meta_key.Encode());
+
+  return batch->Commit();
 }
 
 Status Redis::ZsetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newkey) {
@@ -1634,16 +1664,46 @@ Status Redis::ZsetsRenamenx(const Slice& key, Redis* new_inst, const Slice& newk
   }
 
   // copy a new zset with newkey
-  statistic = parsed_zsets_meta_value.Count();
-  s = new_inst->GetDB()->Put(default_write_options_, handles_[kMetaCF], base_meta_newkey.Encode(), meta_value);
-  new_inst->UpdateSpecificKeyStatistics(DataType::kZSets, newkey.ToString(), statistic);
+  auto batch = Batch::CreateBatch(this);
+  uint64_t version = parsed_zsets_meta_value.Version();
+  std::vector<ScoreMember> score_members;
+  ScoreMember score_member;
 
-  // ZsetsDel key
-  parsed_zsets_meta_value.InitialMetaValue();
-  s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
-  UpdateSpecificKeyStatistics(DataType::kZSets, key.ToString(), statistic);
+  ZSetsScoreKey zsets_score_key(key, version, std::numeric_limits<double>::lowest(), Slice());
+  KeyStatisticsDurationGuard guard(this, DataType::kZSets, key.ToString());
+  rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[kZsetsScoreCF]);
+  for (iter->Seek(zsets_score_key.Encode()); iter->Valid(); iter->Next()) {
+    ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
+    score_member.score = parsed_zsets_score_key.score();
+    score_member.member = parsed_zsets_score_key.member().ToString();
+    score_members.push_back(score_member);
+  }
+  delete iter;
 
-  return s;
+  batch->Put(kMetaCF, base_meta_newkey.Encode(), meta_value);
+
+  char score_buf[8];
+  for (const auto& member : score_members) {
+    ZSetsMemberKey new_zsets_member_key(newkey, version, member.member);
+    const void* ptr_score = reinterpret_cast<const void*>(&member.score);
+    EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
+    BaseDataValue new_zsets_member_i_val(Slice(score_buf, sizeof(uint64_t)));
+    batch->Put(kZsetsDataCF, new_zsets_member_key.Encode(), new_zsets_member_i_val.Encode());
+
+    ZSetsScoreKey new_zsets_score_key(newkey, version, member.score, member.member);
+    BaseDataValue new_zsets_score_i_val(Slice{});
+    batch->Put(kZsetsScoreCF, new_zsets_score_key.Encode(), new_zsets_score_i_val.Encode());
+
+    ZSetsMemberKey zsets_member_key(key, version, member.member);
+    batch->Delete(kZsetsDataCF, zsets_member_key.Encode());
+
+    ZSetsScoreKey zsets_score_key(key, version, member.score, member.member);
+    batch->Delete(kZsetsScoreCF, zsets_score_key.Encode());
+  }
+
+  batch->Delete(kMetaCF, base_meta_key.Encode());
+
+  return batch->Commit();
 }
 
 void Redis::ScanZsets() {

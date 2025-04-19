@@ -23,11 +23,15 @@ ExternalProject_Add(
         DOWNLOAD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/download"
         DOWNLOAD_NAME "brpc-1.8.0.tar.gz"
         SOURCE_DIR ${BRPC_SOURCES_DIR}
+        GIT_SHALLOW true
+        UPDATE_COMMAND ""
         CMAKE_ARGS
         ${EXTERNAL_PROJECT_C}
         ${EXTERNAL_PROJECT_CXX}
         ${EXTERNAL_PROJECT_CXX_FLAGS}
         ${EXTERNAL_PROJECT_CXX_LINK_FLAGS}
+        # To be compatible with cmake 4.0
+        -DCMAKE_POLICY_VERSION_MINIMUM=3.5
         -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
         -DCMAKE_CPP_FLAGS=${CMAKE_CPP_FLAGS}
         -DCMAKE_INSTALL_PREFIX=${BRPC_INSTALL_DIR}

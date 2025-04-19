@@ -48,7 +48,9 @@ jobs:
         run: |
           brew update
           brew install autoconf
+          brew install clang-format
           brew install go
+          brew install llvm
 
       - name: Restore cache
         uses: actions/cache@v4
@@ -65,7 +67,7 @@ jobs:
         run: |
           export LIBRARY_PATH=$(xcrun --show-sdk-path)/usr/lib
           export DYLD_LIBRARY_PATH=$(xcrun --show-sdk-path)/usr/lib
-          bash ./etc/script/build.sh --verbose
+          bash ./etc/script/build.sh --ninja --verbose
 
       - name: GTest
         working-directory: ${{ github.workspace }}/${{ env.BUILD_DIR }}
@@ -105,9 +107,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cache-
 
+      - name: Install Ninja
+        run: |
+          sudo apt install -y ninja-build
+          sudo apt install clang
+
       - name: Build
         run: |
-          bash ./etc/script/build.sh --verbose
+          bash ./etc/script/build.sh --ninja --verbose
 
       - name: GTest
         working-directory: ${{ github.workspace }}/${{ env.BUILD_DIR }}
